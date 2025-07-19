@@ -27,7 +27,6 @@ set(MODULE_SRC
     ${CMAKE_CURRENT_LIST_DIR}/appshellmodule.cpp
     ${CMAKE_CURRENT_LIST_DIR}/appshellmodule.h
     ${CMAKE_CURRENT_LIST_DIR}/iappshellconfiguration.h
-    ${CMAKE_CURRENT_LIST_DIR}/iapplicationactioncontroller.h
     ${CMAKE_CURRENT_LIST_DIR}/appshelltypes.h
     ${CMAKE_CURRENT_LIST_DIR}/internal/applicationuiactions.cpp
     ${CMAKE_CURRENT_LIST_DIR}/internal/applicationuiactions.h
@@ -85,8 +84,10 @@ set(MODULE_SRC
     ${CMAKE_CURRENT_LIST_DIR}/view/preferences/scorepreferencesmodel.h
     ${CMAKE_CURRENT_LIST_DIR}/view/preferences/importpreferencesmodel.cpp
     ${CMAKE_CURRENT_LIST_DIR}/view/preferences/importpreferencesmodel.h
-    ${CMAKE_CURRENT_LIST_DIR}/view/preferences/playbackpreferencesmodel.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/view/preferences/playbackpreferencesmodel.h
+    ${CMAKE_CURRENT_LIST_DIR}/view/preferences/audiomidipreferencesmodel.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/view/preferences/audiomidipreferencesmodel.h
+    ${CMAKE_CURRENT_LIST_DIR}/view/preferences/percussionpreferencesmodel.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/view/preferences/percussionpreferencesmodel.h
     ${CMAKE_CURRENT_LIST_DIR}/view/preferences/commonaudioapiconfigurationmodel.cpp
     ${CMAKE_CURRENT_LIST_DIR}/view/preferences/commonaudioapiconfigurationmodel.h
     ${CMAKE_CURRENT_LIST_DIR}/view/preferences/braillepreferencesmodel.cpp
@@ -95,8 +96,6 @@ set(MODULE_SRC
     ${CMAKE_CURRENT_LIST_DIR}/view/framelesswindow/framelesswindowmodel.h
     ${CMAKE_CURRENT_LIST_DIR}/view/publish/publishtoolbarmodel.cpp
     ${CMAKE_CURRENT_LIST_DIR}/view/publish/publishtoolbarmodel.h
-    ${CMAKE_CURRENT_LIST_DIR}/view/windowdroparea.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/view/windowdroparea.h
     ${CMAKE_CURRENT_LIST_DIR}/view/internal/iappmenumodelhook.h
     ${CMAKE_CURRENT_LIST_DIR}/view/internal/maintoolbarmodel.cpp
     ${CMAKE_CURRENT_LIST_DIR}/view/internal/maintoolbarmodel.h
@@ -108,7 +107,6 @@ set(MODULE_SRC
     ${CMAKE_CURRENT_LIST_DIR}/view/internal/splashscreen/newinstanceloadingscreenview.h
     )
 
-
 set(MODULE_LINK
     muse::ui
     muse::uicomponents
@@ -119,9 +117,15 @@ if (OS_IS_MAC)
     set(MODULE_SRC ${MODULE_SRC}
         ${CMAKE_CURRENT_LIST_DIR}/view/internal/platform/macos/macosappmenumodelhook.mm
         ${CMAKE_CURRENT_LIST_DIR}/view/internal/platform/macos/macosappmenumodelhook.h
-        ${CMAKE_CURRENT_LIST_DIR}/view/internal/platform/macos/macosscrollinghook.cpp
-        ${CMAKE_CURRENT_LIST_DIR}/view/internal/platform/macos/macosscrollinghook.h
     )
+
+    if (${Qt6_VERSION} VERSION_LESS "6.9.0")
+        set(MODULE_SRC ${MODULE_SRC}
+            ${CMAKE_CURRENT_LIST_DIR}/view/internal/platform/macos/macosscrollinghook.cpp
+            ${CMAKE_CURRENT_LIST_DIR}/view/internal/platform/macos/macosscrollinghook.h
+        )
+    endif()
+
     set_source_files_properties(
         ${CMAKE_CURRENT_LIST_DIR}/view/internal/platform/macos/macosappmenumodelhook.mm
         PROPERTIES
@@ -146,7 +150,11 @@ if (NOT OS_IS_MAC)
     )
 
     # we use QKeyMapper to fix https://github.com/musescore/MuseScore/issues/10181
-    set(MODULE_INCLUDE ${Qt6Gui_PRIVATE_INCLUDE_DIRS} )
+    set(MODULE_INCLUDE_PRIVATE ${Qt6Gui_PRIVATE_INCLUDE_DIRS} )
 endif(NOT OS_IS_MAC)
+
+if (QT_SUPPORT)
+    list(APPEND MODULE_LINK Qt::Core5Compat Qt::Quick Qt::Svg Qt::Widgets)
+endif()
 
 setup_module()

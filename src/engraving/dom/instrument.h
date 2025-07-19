@@ -276,7 +276,7 @@ private:
 //   Trait
 //---------------------------------------------------------
 
-enum class TraitType
+enum class TraitType : unsigned char
 {
     Unknown,
     Tuning,
@@ -407,6 +407,9 @@ public:
     void setSingleNoteDynamicsFromTemplate();
     bool getSingleNoteDynamicsFromTemplate() const;
     void switchExpressive(MasterScore* score, Synthesizer* synth, bool expressive, bool force = false);
+
+    bool isVocalInstrument() const;
+    bool isNormallyMultiStaveInstrument() const;
 
 private:
 

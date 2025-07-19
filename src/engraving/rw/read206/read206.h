@@ -59,19 +59,19 @@ class ReadContext;
 namespace mu::engraving::read206 {
 class Read206 : public rw::IReader
 {
-    INJECT_STATIC(IEngravingFontsProvider, engravingFonts)
 public:
 
     //---------------------------------------------------------
     //   read206
     //    import old version > 1.3  and < 3.x files
     //---------------------------------------------------------
-    Err readScore(Score* score, XmlReader& e, rw::ReadInOutData* out) override;
+    muse::Ret readScore(Score* score, XmlReader& e, rw::ReadInOutData* out) override;
 
     bool pasteStaff(XmlReader& e, Segment* dst, staff_idx_t dstStaff, Fraction scale) override;
     void pasteSymbols(XmlReader& e, ChordRest* dst) override;
     void readTremoloCompat(compat::TremoloCompat* item, XmlReader& xml) override;
 
+    static VoiceAssignment readDynamicRange(int);
     static EngravingItem* readArticulation(EngravingItem*, XmlReader&, read400::ReadContext& ctx);
     static void readAccidental206(Accidental*, XmlReader&, read400::ReadContext& ctx);
     static void readTextStyle206(MStyle* style, XmlReader& e, read400::ReadContext& ctx, std::map<String, std::map<Sid,

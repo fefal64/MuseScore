@@ -19,9 +19,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-
-#ifndef MUSE_UICOMPONENTS_MACOSPOPUPVIEWCLOSECONTROLLER_H
-#define MUSE_UICOMPONENTS_MACOSPOPUPVIEWCLOSECONTROLLER_H
+#pragma once
 
 #include <QAbstractNativeEventFilter>
 
@@ -33,7 +31,7 @@ class MacOSPopupViewCloseController : public PopupViewCloseController, public QA
     Q_OBJECT
 
 public:
-    explicit MacOSPopupViewCloseController(QObject* parent = nullptr);
+    explicit MacOSPopupViewCloseController(const muse::modularity::ContextPtr& iocCtx, QObject* parent = nullptr);
     ~MacOSPopupViewCloseController() override = default;
 
 private:
@@ -44,5 +42,3 @@ private:
     void initWindowMinimizedObserver();
 };
 }
-
-#endif // MUSE_UICOMPONENTS_MACOSPOPUPVIEWCLOSECONTROLLER_H

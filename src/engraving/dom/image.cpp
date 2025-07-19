@@ -54,7 +54,7 @@ static bool defaultSizeIsSpatium    = true;
 //---------------------------------------------------------
 
 Image::Image(EngravingItem* parent)
-    : BSymbol(ElementType::IMAGE, parent, ElementFlag::MOVABLE)
+    : BSymbol(ElementType::IMAGE, parent, ElementFlag::MOVABLE), muse::Injectable(BSymbol::iocContext())
 {
     m_imageType        = ImageType::NONE;
     m_size            = SizeF(0.0, 0.0);
@@ -67,7 +67,7 @@ Image::Image(EngravingItem* parent)
 }
 
 Image::Image(const Image& img)
-    : BSymbol(img)
+    : BSymbol(img), muse::Injectable(img.muse::Injectable::iocContext())
 {
     m_imageType        = img.m_imageType;
     m_buffer           = img.m_buffer;
@@ -323,6 +323,13 @@ void Image::startEditDrag(EditData& data)
 
 void Image::editDrag(EditData& ed)
 {
+    if (ed.curGrip == Grip::MIDDLE) {
+        setOffset(offset() + ed.evtDelta);
+        setOffsetChanged(true);
+        triggerLayout();
+        return;
+    }
+
     double ratio = m_size.width() / m_size.height();
     double dx = ed.delta.x();
     double dy = ed.delta.y();
@@ -339,14 +346,14 @@ void Image::editDrag(EditData& ed)
         if (m_lockAspectRatio) {
             m_size.setHeight(m_size.width() / ratio);
         }
-    } else {
+    } else if (ed.curGrip == Grip::END) {
         m_size.setHeight(m_size.height() + dy);
         if (m_lockAspectRatio) {
             m_size.setWidth(m_size.height() * ratio);
         }
     }
 
-    renderer()->layoutItem(this);
+    triggerLayout();
 }
 
 //---------------------------------------------------------

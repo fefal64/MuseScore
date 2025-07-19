@@ -28,6 +28,9 @@
 #include <QDir>
 #include <QQmlContext>
 
+#include "global/types/color.h"
+#include "graphicsapiprovider.h"
+
 #include "log.h"
 
 using namespace muse::ui;
@@ -77,6 +80,7 @@ UiEngine::UiEngine(const modularity::ContextPtr& iocCtx)
     m_interactiveProvider = std::make_shared<InteractiveProvider>(iocContext());
     m_api = new QmlApi(this, iocContext());
     m_tooltip = new QmlToolTip(this, iocContext());
+    m_dataFormatter = new QmlDataFormatter(this);
 
     //! NOTE At the moment, UiTheme is also QProxyStyle
     //! Inside the theme, QApplication::setStyle(this) is calling and the QStyleSheetStyle becomes as parent.
@@ -129,6 +133,11 @@ void UiEngine::quit()
     m_engine = nullptr;
 }
 
+QmlDataFormatter* UiEngine::df() const
+{
+    return m_dataFormatter;
+}
+
 QQuickItem* UiEngine::rootItem() const
 {
     return m_rootItem;
@@ -142,6 +151,19 @@ void UiEngine::setRootItem(QQuickItem* rootItem)
 
     m_rootItem = rootItem;
     emit rootItemChanged(m_rootItem);
+}
+
+bool UiEngine::isEffectsAllowed() const
+{
+    if (m_isEffectsAllowed == -1) {
+        m_isEffectsAllowed = GraphicsApiProvider::graphicsApi() != GraphicsApi::Software;
+    }
+    return m_isEffectsAllowed;
+}
+
+bool UiEngine::isSystemDragSupported() const
+{
+    return configuration()->isSystemDragSupported();
 }
 
 void UiEngine::addSourceImportPath(const QString& path)
@@ -201,6 +223,23 @@ Qt::LayoutDirection UiEngine::currentLanguageLayoutDirection() const
     return languagesService()->currentLanguage().direction;
 }
 
+QColor UiEngine::blendColors(const QColor& c1, const QColor& c2) const
+{
+    return muse::blendQColors(c1, c2);
+}
+
+QColor UiEngine::blendColors(const QColor& c1, const QColor& c2, float alpha) const
+{
+    return muse::blendQColors(c1, c2, alpha);
+}
+
+QColor UiEngine::colorWithAlphaF(const QColor& src, float alpha) const
+{
+    QColor c = src;
+    c.setAlphaF(alpha);
+    return c;
+}
+
 QQmlApplicationEngine* UiEngine::qmlAppEngine() const
 {
     return m_engine;
@@ -214,4 +253,14 @@ QQmlEngine* UiEngine::qmlEngine() const
 void UiEngine::clearComponentCache()
 {
     m_engine->clearComponentCache();
+}
+
+GraphicsApi UiEngine::graphicsApi() const
+{
+    return GraphicsApiProvider::graphicsApi();
+}
+
+QString UiEngine::graphicsApiName() const
+{
+    return GraphicsApiProvider::graphicsApiName();
 }

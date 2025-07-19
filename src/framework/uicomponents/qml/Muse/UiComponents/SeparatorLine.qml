@@ -27,15 +27,17 @@ import Muse.Ui 1.0
 Rectangle {
     id: root
 
-    property int orientation: privateProperties.parentIsHorizontal ? Qt.Vertical : Qt.Horizontal
+    property int orientation: prv.parentIsHorizontal ? Qt.Vertical : Qt.Horizontal
+    property int thickness: 1
 
     color: ui.theme.strokeColor
 
     QtObject {
-        id: privateProperties
+        id: prv
 
         readonly property bool parentIsHorizontal: root.parent instanceof Row || root.parent instanceof RowLayout
         readonly property bool parentIsLayout: root.parent instanceof ColumnLayout || root.parent instanceof RowLayout || root.parent instanceof GridLayout
+        readonly property bool parentIsLoader: root.parent instanceof Loader
     }
 
     states: [
@@ -45,15 +47,19 @@ Rectangle {
 
             PropertyChanges {
                 target: root
-                height: 1
+                height: root.thickness
                 Layout.fillWidth: true
             }
 
             StateChangeScript {
                 script: {
-                    if (privateProperties.parentIsLayout) {
+                    if (prv.parentIsLayout) {
                         root.Layout.fillWidth = true
                     } else {
+                        if (prv.parentIsLoader && root.parent.status !== Loader.Ready) {
+                            return
+                        }
+
                         root.anchors.left = root.parent.left
                         root.anchors.right = root.parent.right
                     }
@@ -67,15 +73,19 @@ Rectangle {
 
             PropertyChanges {
                 target: root
-                width: 1
+                width: root.thickness
                 Layout.fillHeight: true
             }
 
             StateChangeScript {
                 script: {
-                    if (privateProperties.parentIsLayout) {
+                    if (prv.parentIsLayout) {
                         root.Layout.fillHeight = true
                     } else {
+                        if (prv.parentIsLoader && root.parent.status !== Loader.Ready) {
+                            return
+                        }
+
                         root.anchors.top = root.parent.top
                         root.anchors.bottom = root.parent.bottom
                     }

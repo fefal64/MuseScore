@@ -19,8 +19,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-#ifndef MU_ENGRAVING_WRITER_H
-#define MU_ENGRAVING_WRITER_H
+#pragma once
 
 #include "../iwriter.h"
 
@@ -31,10 +30,13 @@
 #include "../compat/writescorehook.h"
 
 namespace mu::engraving::write {
-class Writer : public rw::IWriter
+class Writer : public rw::IWriter, public muse::Injectable
 {
-    muse::Inject<muse::IApplication> application;
+    muse::Inject<muse::IApplication> application = { this };
+
 public:
+
+    Writer(const muse::modularity::ContextPtr& iocCtx);
 
     bool writeScore(Score* score, muse::io::IODevice* device, bool onlySelection, rw::WriteInOutData* out) override;
 
@@ -47,5 +49,3 @@ private:
     void doWriteItem(const EngravingItem* item, XmlWriter& xml) override;
 };
 }
-
-#endif // MU_ENGRAVING_WRITER_H

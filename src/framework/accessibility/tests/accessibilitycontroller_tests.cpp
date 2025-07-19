@@ -19,16 +19,31 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include <QWindow>
+#include <memory>
+
 #include <QKeyEvent>
+#include <QRect>
+#include <QString>
+#include <QVariant>
+#include <QWindow>
 
+#include "async/channel.h"
+#include "iapplication.h"
+
+#include "accessibility/iaccessible.h"
 #include "accessibility/internal/accessibilitycontroller.h"
+#include "global/tests/mocks/applicationmock.h"
+#include "mocks/accessibilityconfigurationmock.h"
 
+#include "modularity/ioc.h"
 #include "ui/tests/mocks/mainwindowmock.h"
 #include "global/tests/mocks/applicationmock.h"
 #include "mocks/accessibilityconfigurationmock.h"
+
+class QEvent;
 
 using ::testing::Return;
 using ::testing::_;
@@ -44,7 +59,9 @@ public:
 
     void SetUp() override
     {
-        m_controller = std::make_shared<AccessibilityController>();
+        m_controller = std::make_shared<AccessibilityController>(muse::modularity::globalCtx());
+
+        m_controller->setAccesibilityEnabled(true);
 
         m_mainWindow = std::make_shared<muse::ui::MainWindowMock>();
         m_controller->mainWindow.set(m_mainWindow);
@@ -65,6 +82,7 @@ public:
         size_t accessibleChildCount() const override { return 0; }
         const IAccessible* accessibleChild(size_t) const override { return nullptr; }
         QWindow* accessibleWindow() const override { return nullptr; }
+        muse::modularity::ContextPtr iocContext() const override { return muse::modularity::globalCtx(); }
         IAccessible::Role accessibleRole() const override { return IAccessible::NoRole; }
         QString accessibleName() const override { return QString(); }
         QString accessibleDescription() const override { return QString(); }

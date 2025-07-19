@@ -29,26 +29,31 @@
 #include "global/async/asyncable.h"
 #include "global/types/retval.h"
 
+#include "../../ifxresolver.h"
+#include "../../iaudioconfiguration.h"
+#include "../dsp/limiter.h"
+
 #include "abstractaudiosource.h"
 #include "mixerchannel.h"
-#include "internal/dsp/limiter.h"
-#include "ifxresolver.h"
-#include "iaudioconfiguration.h"
 #include "iclock.h"
 
+namespace muse {
+class TaskScheduler;
+}
+
 namespace muse::audio {
-class Mixer : public AbstractAudioSource, public std::enable_shared_from_this<Mixer>, public async::Asyncable
+class Mixer : public AbstractAudioSource, public Injectable, public async::Asyncable, public std::enable_shared_from_this<Mixer>
 {
-    Inject<fx::IFxResolver> fxResolver;
-    Inject<IAudioConfiguration> configuration;
+    Inject<fx::IFxResolver> fxResolver = { this };
+    Inject<IAudioConfiguration> configuration = { this };
 
 public:
-    Mixer();
+    Mixer(const modularity::ContextPtr& iocCtx);
     ~Mixer();
 
     IAudioSourcePtr mixedSource();
 
-    RetVal<MixerChannelPtr> addChannel(const TrackId trackId, IAudioSourcePtr source);
+    RetVal<MixerChannelPtr> addChannel(const TrackId trackId, ITrackAudioInputPtr source);
     RetVal<MixerChannelPtr> addAuxChannel(const TrackId trackId);
     Ret removeChannel(const TrackId trackId);
 
@@ -62,7 +67,7 @@ public:
     void clearMasterOutputParams();
     async::Channel<AudioOutputParams> masterOutputParamsChanged() const;
 
-    async::Channel<audioch_t, AudioSignalVal> masterAudioSignalChanges() const;
+    AudioSignalChanges masterAudioSignalChanges() const;
 
     void setIsIdle(bool idle);
     void setTracksToProcessWhenIdle(std::unordered_set<TrackId>&& trackIds);
@@ -77,7 +82,7 @@ private:
     using TracksData = std::map<TrackId, std::vector<float> >;
 
     void processTrackChannels(size_t outBufferSize, size_t samplesPerChannel, TracksData& outTracksData);
-    void mixOutputFromChannel(float* outBuffer, const float* inBuffer, unsigned int samplesCount, bool& outBufferIsSilent);
+    void mixOutputFromChannel(float* outBuffer, const float* inBuffer, unsigned int samplesCount) const;
     void prepareAuxBuffers(size_t outBufferSize);
     void writeTrackToAuxBuffers(const float* trackBuffer, const AuxSendsParams& auxSends, samples_t samplesPerChannel);
     void processAuxChannels(float* buffer, samples_t samplesPerChannel);
@@ -86,11 +91,13 @@ private:
     bool useMultithreading() const;
 
     void notifyNoAudioSignal();
-    void notifyAboutAudioSignalChanges(const audioch_t audioChannelNumber, const float linearRms) const;
+
+    msecs_t currentTime() const;
+
+    std::unique_ptr<TaskScheduler> m_taskScheduler;
 
     size_t m_minTrackCountForMultithreading = 0;
-
-    std::vector<float> m_writeCacheBuff;
+    size_t m_nonMutedTrackCount = 0;
 
     AudioOutputParams m_masterParams;
     async::Channel<AudioOutputParams> m_masterOutputParamsChanged;

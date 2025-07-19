@@ -32,7 +32,7 @@
 #include "engraving/rw/mscloader.h"
 #include "engraving/dom/masterscore.h"
 
-// #ifdef MUE_BUILD_IMPORTEXPORT_MODULE
+// #ifdef MUE_BUILD_IMPEXP_GUITARPRO_MODULE
 // #include "importexport/guitarpro/internal/guitarproreader.h"
 // #endif
 
@@ -50,6 +50,11 @@ using namespace mu::engraving;
 //! -> jsonPath = outDir/v3/score.json (now just outDir/score.json)
 
 static const std::vector<std::string> FILES_FILTER = { "*.mscz", "*.mscx", "*.gp", "*.gpx", "*.gp4", "*.gp5" };
+
+DrawDataGenerator::DrawDataGenerator(const muse::modularity::ContextPtr& iocCtx)
+    : muse::Injectable(iocCtx)
+{
+}
 
 Ret DrawDataGenerator::processDir(const muse::io::path_t& scoreDir, const muse::io::path_t& outDir, const GenOpt& opt)
 {
@@ -211,7 +216,7 @@ bool DrawDataGenerator::loadScore(mu::engraving::MasterScore* score, const muse:
         // Import
 
 //         TRACEFUNC_C("Load gp");
-// #ifdef MUE_BUILD_IMPORTEXPORT_MODULE
+// #ifdef MUE_BUILD_IMPEXP_GUITARPRO_MODULE
 //         mu::iex::guitarpro::GuitarProReader reader;
 //         Ret ret = reader.read(score, path);
 //         if (!ret) {

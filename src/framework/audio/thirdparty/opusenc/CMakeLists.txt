@@ -1,5 +1,4 @@
-
-declare_module(opusenc)
+declare_thirdparty_module(opusenc)
 
 include(GetPlatformInfo)
 include(GetCompilerInfo)
@@ -9,7 +8,7 @@ set(OPUSENC_VERSION 0.2.1)
 set(OPUSENC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/libopusenc-${OPUSENC_VERSION})
 
 # libopusenc dependent on libopus
-include(cmake/SetupOpusLibrary.cmake)
+include(cmake/SetupOpus.cmake)
 
 aux_source_directory(${OPUSENC_DIR}/src SOURCE_LIB)
 
@@ -32,8 +31,9 @@ set(MODULE_SRC
 
 set(MODULE_LINK ${OPUS_LIBRARIES})
 
-set(MODULE_USE_PCH_DISABLED ON)
-set(MODULE_USE_UNITY_NONE ON)
+set(MODULE_USE_UNITY OFF)
+set(MODULE_USE_COVERAGE OFF)
+
 setup_module()
 
 target_no_warning(${MODULE} -Wno-unused-parameter)

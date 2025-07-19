@@ -29,8 +29,8 @@ using namespace muse::uicomponents;
 
 id<NSObject> minimizeObserverToken = nil;
 
-MacOSPopupViewCloseController::MacOSPopupViewCloseController(QObject* parent)
-    : PopupViewCloseController(parent)
+MacOSPopupViewCloseController::MacOSPopupViewCloseController(const modularity::ContextPtr& iocCtx, QObject* parent)
+    : PopupViewCloseController(iocCtx, parent)
 {
 }
 
@@ -60,9 +60,7 @@ bool MacOSPopupViewCloseController::nativeEventFilter(const QByteArray& eventTyp
 
     NSEvent* event = static_cast<NSEvent*>(message);
     if ([event type] == NSEventTypeRightMouseDown || [event type] == NSEventTypeLeftMouseDown) {
-        if (!popupHasFocus()) {
-            doFocusOut();
-        }
+        doFocusOut(QCursor::pos());
     }
 
     return false;

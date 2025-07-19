@@ -47,6 +47,7 @@ struct ReadInOutData {
     // for except - in
     ReadLinks links;
     std::optional<double> overriddenSpatium = std::nullopt;
+    PropertyIdSet propertiesToSkip;
 
     // out
     SettingsCompat settingsCompat;
@@ -55,6 +56,8 @@ struct ReadInOutData {
 
 struct WriteInOutData {
     write::WriteContext ctx;
+    WriteInOutData(const Score* s)
+        : ctx(s) {}
 };
 }
 

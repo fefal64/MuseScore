@@ -25,36 +25,50 @@
 
 #include "global/async/asyncable.h"
 
+#include "modularity/ioc.h"
+#include "iaudioengine.h"
+
 #include "isequenceplayer.h"
 #include "igettracks.h"
 #include "iclock.h"
 
 namespace muse::audio {
-class SequencePlayer : public ISequencePlayer, public async::Asyncable
+class SequencePlayer : public ISequencePlayer, public Injectable, public async::Asyncable
 {
-public:
-    explicit SequencePlayer(IGetTracks* getTracks, IClockPtr clock);
+    Inject<IAudioEngine> audioEngine = { this };
 
-    void play() override;
-    void seek(const msecs_t newPositionMsecs) override;
+public:
+    explicit SequencePlayer(IGetTracks* getTracks, IClockPtr clock, const modularity::ContextPtr& iocCtx);
+
+    void play(const secs_t delay = 0) override;
+    void seek(const secs_t newPosition) override;
     void stop() override;
     void pause() override;
-    void resume() override;
+    void resume(const secs_t delay = 0) override;
+
+    PlaybackStatus playbackStatus() const override;
+    async::Channel<PlaybackStatus> playbackStatusChanged() const override;
 
     msecs_t duration() const override;
     void setDuration(const msecs_t duration) override;
     Ret setLoop(const msecs_t fromMsec, const msecs_t toMsec) override;
     void resetLoop() override;
 
-    async::Channel<msecs_t> playbackPositionMSecs() const override;
-    async::Channel<PlaybackStatus> playbackStatusChanged() const override;
+    secs_t playbackPosition() const override;
+    async::Channel<secs_t> playbackPositionChanged() const override;
 
 private:
-    void setAllTracksActive(bool active);
     void seekAllTracks(const msecs_t newPositionMsecs);
+    void flushAllTracks();
+
+    using AllTracksReadyCallback = std::function<void ()>;
+    void prepareAllTracksToPlay(AllTracksReadyCallback allTracksReadyCallback);
 
     IGetTracks* m_getTracks = nullptr;
     IClockPtr m_clock = nullptr;
+
+    bool m_countDownIsSet = false;
+    std::set<TrackId> m_notYetReadyToPlayTrackIdSet;
 };
 }
 

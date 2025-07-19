@@ -36,7 +36,7 @@ using namespace mu::engraving;
 static const QString STAFF_TEXT_PROPERTIES_DIALOG_NAME("StaffTextPropertiesDialog");
 
 StaffTextPropertiesDialog::StaffTextPropertiesDialog(QWidget* parent)
-    : QDialog(parent)
+    : QDialog(parent), muse::Injectable(muse::iocCtxForQWidget(this))
 {
     setObjectName(STAFF_TEXT_PROPERTIES_DIALOG_NAME);
     setupUi(this);
@@ -83,13 +83,17 @@ StaffTextPropertiesDialog::StaffTextPropertiesDialog(QWidget* parent)
     connect(swingSixteenth, &QRadioButton::toggled, this, &StaffTextPropertiesDialog::setSwingControls);
 
     connect(this, &QDialog::accepted, this, &StaffTextPropertiesDialog::saveValues);
-
-    muse::ui::WidgetStateStore::restoreGeometry(this);
 }
 
 StaffTextPropertiesDialog::~StaffTextPropertiesDialog()
 {
     delete m_staffText;
+}
+
+void StaffTextPropertiesDialog::showEvent(QShowEvent* event)
+{
+    muse::ui::WidgetStateStore::restoreGeometry(this);
+    QDialog::showEvent(event);
 }
 
 void StaffTextPropertiesDialog::hideEvent(QHideEvent* event)
@@ -141,7 +145,7 @@ void StaffTextPropertiesDialog::saveValues()
     StaffTextBase* nt = toStaffTextBase(m_staffText->clone());
     nt->setScore(score);
 
-    stack->prepareChanges();
+    stack->prepareChanges(muse::TranslatableString("undoableAction", "Edit staff text properties"));
     score->undoChangeElement(m_originStaffText, nt);
     score->masterScore()->updateChannel();
     score->updateSwing();

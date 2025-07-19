@@ -27,6 +27,7 @@
 #include <QVariant>
 #include <QMap>
 
+#include "modularity/ioc.h"
 #include "global/async/channel.h"
 #include "global/types/val.h"
 
@@ -47,6 +48,7 @@ public:
         Panel,
         StaticText,
         EditableText,
+        SilentRole, // avoids reading "button", "text", etc. after item name
         Button,
         CheckBox,
         RadioButton,
@@ -121,6 +123,7 @@ public:
     virtual size_t accessibleChildCount() const = 0;
     virtual const IAccessible* accessibleChild(size_t i) const = 0;
     virtual QWindow* accessibleWindow() const = 0;
+    virtual muse::modularity::ContextPtr iocContext() const = 0;
 
     virtual IAccessible::Role accessibleRole() const = 0;
     virtual QString accessibleName() const = 0;

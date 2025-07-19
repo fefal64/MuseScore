@@ -112,8 +112,21 @@ const char* PaletteCell::translationContext() const
         return "engraving/bagpipeembellishment";
     case ElementType::CLEF:
         return "engraving/cleftype";
+    case ElementType::DYNAMIC:
+        return "engraving/dynamictype";
+    case ElementType::HAIRPIN:
+        if (name == u"Dynamic + hairpin") {
+            return "palette";
+        }
+        return "engraving/hairpintype";
+    case ElementType::LAYOUT_BREAK:
+        return "engraving/layoutbreaktype";
     case ElementType::NOTEHEAD:
         return "engraving/noteheadgroup";
+    case ElementType::OTTAVA:
+        return "engraving/ottavatype";
+    case ElementType::SPACER:
+        return "engraving/spacertype";
     case ElementType::ACCIDENTAL:
     case ElementType::ARTICULATION:
     case ElementType::BAR_LINE:
@@ -292,9 +305,9 @@ void PaletteCell::write(XmlWriter& xml, bool pasteMode) const
     }
 
     if (untranslatedElement) {
-        rw::RWRegister::writer()->writeItem(untranslatedElement.get(), xml);
+        rw::RWRegister::writer(untranslatedElement->iocContext())->writeItem(untranslatedElement.get(), xml);
     } else {
-        rw::RWRegister::writer()->writeItem(element.get(), xml);
+        rw::RWRegister::writer(element->iocContext())->writeItem(element.get(), xml);
     }
     xml.endElement();
 }

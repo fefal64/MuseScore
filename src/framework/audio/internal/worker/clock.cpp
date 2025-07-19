@@ -42,6 +42,14 @@ void Clock::forward(const msecs_t nextMsecs)
         return;
     }
 
+    if (m_countDown > nextMsecs) {
+        m_countDown -= nextMsecs;
+        return;
+    } else if (m_countDown != 0) {
+        m_countDown = 0;
+        m_countDownEnded.notify();
+    }
+
     msecs_t newTime = m_currentTime + nextMsecs;
 
     if (m_timeLoopStart < m_timeLoopEnd && newTime >= m_timeLoopEnd) {
@@ -68,7 +76,7 @@ void Clock::setCurrentTime(msecs_t time)
     }
 
     m_currentTime = time;
-    m_timeChangedInMilliSecs.send(m_currentTime / 1000);
+    m_timeChangedInSecs.send(microsecsToSecs(m_currentTime));
 }
 
 void Clock::start()
@@ -80,12 +88,14 @@ void Clock::reset()
 {
     seek(0);
     resetTimeLoop();
+    m_countDown = 0;
 }
 
 void Clock::stop()
 {
     m_status.set(PlaybackStatus::Stopped);
     seek(0);
+    m_countDown = 0;
 }
 
 void Clock::pause()
@@ -137,19 +147,34 @@ void Clock::resetTimeLoop()
     m_timeLoopEnd = 0;
 }
 
+void Clock::setCountDown(const msecs_t duration)
+{
+    m_countDown = duration;
+}
+
+async::Notification Clock::countDownEnded() const
+{
+    return m_countDownEnded;
+}
+
 bool Clock::isRunning() const
 {
     return m_status.val == PlaybackStatus::Running;
 }
 
-async::Channel<msecs_t> Clock::timeChanged() const
+async::Channel<secs_t> Clock::timeChanged() const
 {
-    return m_timeChangedInMilliSecs;
+    return m_timeChangedInSecs;
 }
 
 async::Notification Clock::seekOccurred() const
 {
     return m_seekOccurred;
+}
+
+PlaybackStatus Clock::status() const
+{
+    return m_status.val;
 }
 
 async::Channel<PlaybackStatus> Clock::statusChanged() const

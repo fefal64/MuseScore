@@ -20,34 +20,38 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#ifndef MU_NOTATION_EDITSTAFF_H
-#define MU_NOTATION_EDITSTAFF_H
+#pragma once
 
 #include <QDialog>
 
 #include "ui_editstaff.h"
 #include "engraving/dom/stafftype.h"
 
+#include "global/async/asyncable.h"
+
 #include "modularity/ioc.h"
 #include "context/iglobalcontext.h"
 #include "global/iinteractive.h"
+#include "engraving/iengravingconfiguration.h"
 #include "iselectinstrumentscenario.h"
 
 namespace mu::notation {
 class EditStaffType;
 
-class EditStaff : public QDialog, private Ui::EditStaffBase
+class EditStaff : public QDialog, private Ui::EditStaffBase, public muse::Injectable, public muse::async::Asyncable
 {
     Q_OBJECT
 
-    INJECT(context::IGlobalContext, globalContext)
-    INJECT(muse::IInteractive, interactive)
-    INJECT(ISelectInstrumentsScenario, selectInstrumentsScenario)
+    muse::Inject<context::IGlobalContext> globalContext = { this };
+    muse::Inject<muse::IInteractive> interactive = { this };
+    muse::Inject<ISelectInstrumentsScenario> selectInstrumentsScenario = { this };
+    muse::Inject<engraving::IEngravingConfiguration> engravingConfiguration = { this };
 
 public:
     EditStaff(QWidget* parent = nullptr);
 
 private:
+    void showEvent(QShowEvent*) override;
     void hideEvent(QHideEvent*) override;
     void apply();
     void setStaff(mu::engraving::Staff*, const mu::engraving::Fraction& tick);
@@ -108,5 +112,3 @@ private:
     EditStaffType* editStaffTypeDialog = nullptr;
 };
 }
-
-#endif

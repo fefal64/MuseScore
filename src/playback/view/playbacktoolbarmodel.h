@@ -26,13 +26,13 @@
 
 #include "modularity/ioc.h"
 #include "iplaybackcontroller.h"
+#include "notation/inotationconfiguration.h"
+#include "context/iglobalcontext.h"
 
 namespace mu::playback {
 class PlaybackToolBarModel : public muse::uicomponents::AbstractMenuModel
 {
     Q_OBJECT
-
-    INJECT(IPlaybackController, playbackController)
 
     Q_PROPERTY(bool isToolbarFloating READ isToolbarFloating WRITE setIsToolbarFloating NOTIFY isToolbarFloatingChanged)
     Q_PROPERTY(bool isPlayAllowed READ isPlayAllowed NOTIFY isPlayAllowedChanged)
@@ -48,6 +48,10 @@ class PlaybackToolBarModel : public muse::uicomponents::AbstractMenuModel
 
     Q_PROPERTY(QVariant tempo READ tempo NOTIFY tempoChanged)
     Q_PROPERTY(qreal tempoMultiplier READ tempoMultiplier WRITE setTempoMultiplier NOTIFY tempoChanged)
+
+    muse::Inject<IPlaybackController> playbackController;
+    muse::Inject<context::IGlobalContext> globalContext;
+    muse::Inject<notation::INotationConfiguration> notationConfiguration = { this };
 
 public:
     explicit PlaybackToolBarModel(QObject* parent = nullptr);
@@ -86,6 +90,7 @@ signals:
 
 private:
     void setupConnections();
+    muse::uicomponents::MenuItem* makeInputPitchMenu();
 
     void updateActions();
     void onActionsStateChanges(const muse::actions::ActionCodeList& codes) override;
@@ -97,10 +102,10 @@ private:
 
     muse::ui::UiAction playAction() const;
 
-    void updatePlayPosition();
+    void updatePlayPosition(muse::audio::secs_t secs);
     void doSetPlayTime(const QTime& time);
 
-    void rewind(muse::audio::msecs_t milliseconds);
+    void rewind(muse::audio::secs_t secs);
     void rewindToBeat(const notation::MeasureBeat& beat);
 
     bool m_isToolbarFloating = false;

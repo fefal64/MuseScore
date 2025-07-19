@@ -37,12 +37,18 @@
 #include "engraving/dom/dynamic.h"
 #include "engraving/dom/fermata.h"
 #include "engraving/dom/figuredbass.h"
+#include "engraving/dom/fingering.h"
+#include "engraving/dom/glissando.h"
 #include "engraving/dom/hairpin.h"
 #include "engraving/dom/harmony.h"
+#include "engraving/dom/harppedaldiagram.h"
+#include "engraving/dom/instrument.h"
 #include "engraving/dom/jump.h"
 #include "engraving/dom/keysig.h"
+#include "engraving/dom/laissezvib.h"
 #include "engraving/dom/lyrics.h"
 #include "engraving/dom/marker.h"
+#include "engraving/dom/masterscore.h"
 #include "engraving/dom/measure.h"
 #include "engraving/dom/measurerepeat.h"
 #include "engraving/dom/note.h"
@@ -51,6 +57,7 @@
 #include "engraving/dom/page.h"
 #include "engraving/dom/part.h"
 #include "engraving/dom/pedal.h"
+#include "engraving/dom/rehearsalmark.h"
 #include "engraving/dom/rest.h"
 #include "engraving/dom/score.h"
 #include "engraving/dom/segment.h"
@@ -62,12 +69,15 @@
 #include "engraving/dom/text.h"
 #include "engraving/dom/tie.h"
 #include "engraving/dom/timesig.h"
+#include "engraving/dom/trill.h"
 #include "engraving/dom/tuplet.h"
 #include "engraving/dom/volta.h"
 
 #include "thirdparty/libmei/cmn.h"
+#include "thirdparty/libmei/fingering.h"
 #include "thirdparty/libmei/harmony.h"
 #include "thirdparty/libmei/lyrics.h"
+#include "thirdparty/libmei/midi.h"
 #include "thirdparty/libmei/shared.h"
 
 using namespace mu::iex::mei;
@@ -86,6 +96,8 @@ using namespace mu::engraving;
 
 bool MeiExporter::write(std::string& meiData)
 {
+    const bool useMuseScoreIds = configuration()->meiUseMuseScoreIds();
+
     m_uids = UIDRegister::instance();
     m_xmlIDCounter = 0;
 
@@ -106,7 +118,7 @@ bool MeiExporter::write(std::string& meiData)
         decl.append_attribute("encoding") = "UTF-8";
 
         // schema processing instruction
-        std::string schema = "https://music-encoding.org/schema/5.0/mei-basic.rng";
+        std::string schema = "https://music-encoding.org/schema/5.1/mei-basic.rng";
         decl = meiDoc.append_child(pugi::node_declaration);
         decl.set_name("xml-model");
         decl.append_attribute("href") = schema.c_str();
@@ -122,14 +134,28 @@ bool MeiExporter::write(std::string& meiData)
         m_mei = meiDoc.append_child("mei");
         m_mei.append_attribute("xmlns") = "http://www.music-encoding.org/ns/mei";
 
-        // Save xml:id metaTag's as mei@xml:id
-        String xmlId = m_score->metaTag(u"xml:id");
-        if (!xmlId.isEmpty()) {
-            m_mei.append_attribute("xml:id") = xmlId.toStdString().c_str();
+        // Option to use MuseScore Ids has priority
+        if (useMuseScoreIds) {
+            std::stringstream xmlId;
+            EID eid = m_score->masterScore()->eid();
+            if (!eid.isValid()) {
+                eid = m_score->masterScore()->assignNewEID();
+            }
+            String eidStr = String::fromStdString(eid.toStdString().c_str());
+            xmlId << "mscore-" << eidStr.replace('/', '.').replace('+', '-').toStdString();
+            m_mei.append_attribute("xml:id") = xmlId.str().c_str();
+        }
+        // Otherwise check if we have a metaTag
+        else {
+            // Save xml:id metaTag's as mei@xml:id
+            String xmlId = m_score->metaTag(u"xml:id");
+            if (!xmlId.isEmpty()) {
+                m_mei.append_attribute("xml:id") = xmlId.toStdString().c_str();
+            }
         }
 
         libmei::AttConverter converter;
-        libmei::meiVersion_MEIVERSION meiVersion = libmei::meiVersion_MEIVERSION_5_0plusbasic;
+        libmei::meiVersion_MEIVERSION meiVersion = libmei::meiVersion_MEIVERSION_5_1plusbasic;
         m_mei.append_attribute("meiversion") = (converter.MeiVersionMeiversionToStr(meiVersion)).c_str();
 
         this->writeHeader();
@@ -589,7 +615,7 @@ bool MeiExporter::writeStaffGrpStart(const Staff* staff, std::vector<int>& ends,
 
     for (size_t j = 0; j < staff->bracketLevels() + 1; j++) {
         if (staff->bracketType(j) != BracketType::NO_BRACKET) {
-            libmei::StaffGrp meiStaffGrp = Convert::bracketToMEI(staff->bracketType(j), staff->barLineSpan());
+            libmei::StaffGrp meiStaffGrp = Convert::staffGrpToMEI(staff->bracketType(j), staff->barLineSpan());
             // mark at which staff we will need to close the staffGrp
             int end = static_cast<int>(staff->idx() + staff->bracketSpan(j)) - 1;
             // Something is wrong, maybe a staff was delete in the MuseScore file?
@@ -603,6 +629,7 @@ bool MeiExporter::writeStaffGrpStart(const Staff* staff, std::vector<int>& ends,
             // If we have a part and reached the latest level, write the label and labelAbbr
             if (staffGrpPart && j == staff->bracketLevels()) {
                 this->writeLabel(m_currentNode, staffGrpPart);
+                this->writeInstrDef(m_currentNode, staffGrpPart);
             }
         }
     }
@@ -643,6 +670,7 @@ bool MeiExporter::writeStaffDef(const Staff* staff, const Measure* measure, cons
 
     if (isPart) {
         this->writeLabel(staffDefNode, part);
+        this->writeInstrDef(staffDefNode, part);
     }
 
     if (measure) {
@@ -724,6 +752,34 @@ bool MeiExporter::writeLabel(pugi::xml_node node, const Part* part)
         lines = instrument->abbreviatureAsPlainText().split(u"\n");
         this->writeLines(labelAbbrNode, lines);
     }
+
+    return true;
+}
+
+/**
+ * Write instrument definition for MIDI information.
+ */
+
+bool MeiExporter::writeInstrDef(pugi::xml_node node, const Part* part)
+{
+    IF_ASSERT_FAILED(part) {
+        return false;
+    }
+
+    const int midiProgram = part->midiProgram();
+    // const int midiChannel = part->midiChannel();
+    // const int midiPort = part->midiPort();
+
+    if (midiProgram < 0) {
+        return false;
+    }
+
+    libmei::InstrDef meiInstrDef;
+    pugi::xml_node instrDefNode = node.append_child();
+    if (midiProgram >= 0 && midiProgram < 128) {
+        meiInstrDef.SetMidiInstrnum(midiProgram);
+    }
+    meiInstrDef.Write(instrDefNode);
 
     return true;
 }
@@ -813,22 +869,32 @@ bool MeiExporter::writeMeasure(const Measure* measure, int& measureN, bool& isFi
             success = success && this->writeFermata(dynamic_cast<const Fermata*>(controlEvent.first), controlEvent.second);
         } else if (controlEvent.first->isFiguredBass()) {
             success = success && this->writeFb(dynamic_cast<const FiguredBass*>(controlEvent.first), controlEvent.second);
+        } else if (controlEvent.first->isFingering()) {
+            success = success && this->writeFing(dynamic_cast<const Fingering*>(controlEvent.first), controlEvent.second);
+        } else if (controlEvent.first->isGlissando()) {
+            success = success && this->writeGliss(dynamic_cast<const Glissando*>(controlEvent.first), controlEvent.second);
         } else if (controlEvent.first->isHairpin()) {
             success = success && this->writeHairpin(dynamic_cast<const Hairpin*>(controlEvent.first), controlEvent.second);
         } else if (controlEvent.first->isHarmony()) {
             success = success && this->writeHarm(dynamic_cast<const Harmony*>(controlEvent.first), controlEvent.second);
+        } else if (controlEvent.first->isHarpPedalDiagram()) {
+            success = success && this->writeHarpPedal(dynamic_cast<const HarpPedalDiagram*>(controlEvent.first), controlEvent.second);
         } else if (controlEvent.first->isOrnament()) {
             success = success && this->writeOrnament(dynamic_cast<const Ornament*>(controlEvent.first), controlEvent.second);
         } else if (controlEvent.first->isOttava()) {
             success = success && this->writeOctave(dynamic_cast<const Ottava*>(controlEvent.first), controlEvent.second);
         } else if (controlEvent.first->isPedal()) {
             success = success && this->writePedal(dynamic_cast<const Pedal*>(controlEvent.first), controlEvent.second);
+        } else if (controlEvent.first->isRehearsalMark()) {
+            success = success && this->writeRehearsalMark(dynamic_cast<const RehearsalMark*>(controlEvent.first), controlEvent.second);
         } else if (controlEvent.first->isSlur()) {
             success = success && this->writeSlur(dynamic_cast<const Slur*>(controlEvent.first), controlEvent.second);
         } else if (controlEvent.first->isTempoText()) {
             success = success && this->writeTempo(dynamic_cast<const TempoText*>(controlEvent.first), controlEvent.second);
         } else if (controlEvent.first->isTie()) {
             success = success && this->writeTie(dynamic_cast<const Tie*>(controlEvent.first), controlEvent.second);
+        } else if (controlEvent.first->isTrill()) {
+            success = success && this->writeTrill(dynamic_cast<const Trill*>(controlEvent.first), controlEvent.second);
         }
     }
     m_startingControlEventList.clear();
@@ -965,7 +1031,7 @@ bool MeiExporter::writeArtics(const Chord* chord)
     }
 
     for (const Articulation* articulation : chord->articulations()) {
-        if (articulation->isArticulation()) {
+        if (articulation->isArticulation() && !this->isLaissezVibrer(articulation->symId())) {
             this->writeArtic(articulation);
         }
     }
@@ -1176,7 +1242,7 @@ bool MeiExporter::writeChord(const Chord* chord, const Staff* staff)
             meiChord.SetDots(chord->dots());
         }
         this->writeBeamTypeAtt(chord, meiChord);
-        this->writeStaffIdenAtt(chord, staff, meiChord);
+        this->writeStaffIdentAtt(chord, staff, meiChord);
         this->writeStemAtt(chord, meiChord);
         this->writeArtics(chord);
         this->writeVerses(chord);
@@ -1266,10 +1332,14 @@ bool MeiExporter::writeNote(const Note* note, const Chord* chord, const Staff* s
             meiNote.SetDots(chord->dots());
         }
         this->writeBeamTypeAtt(chord, meiNote);
-        this->writeStaffIdenAtt(chord, staff, meiNote);
+        this->writeStaffIdentAtt(chord, staff, meiNote);
         this->writeStemAtt(chord, meiNote);
         this->writeArtics(chord);
         this->writeVerses(chord);
+    }
+    const int velocity = note->userVelocity();
+    if (velocity != 0) {
+        meiNote.SetVel(velocity);
     }
     Convert::colorToMEI(note, meiNote);
     std::string xmlId = this->getXmlIdFor(note, 'n');
@@ -1283,6 +1353,23 @@ bool MeiExporter::writeNote(const Note* note, const Chord* chord, const Staff* s
     }
     if (note->tieBack()) {
         m_endingControlEventMap[note->tieBack()] = "#" + xmlId;
+    }
+
+    for (Spanner* spanner : note->spannerFor()) {
+        if (spanner->isGlissando()) {
+            m_startingControlEventList.push_back(std::make_pair(spanner, "#" + xmlId));
+        }
+    }
+    for (Spanner* spanner : note->spannerBack()) {
+        if (spanner->isGlissando()) {
+            m_endingControlEventMap[spanner] = "#" + xmlId;
+        }
+    }
+
+    for (const EngravingItem* element : note->el()) {
+        if (element->isFingering()) {
+            m_startingControlEventList.push_back(std::make_pair(element, "#" + xmlId));
+        }
     }
 
     if (meiAccid.HasAccid() || meiAccid.HasAccidGes()) {
@@ -1334,9 +1421,11 @@ bool MeiExporter::writeRest(const Rest* rest, const Staff* staff)
         if (rest->dots()) {
             meiRest.SetDots(rest->dots());
         }
-        Convert::colorToMEI(rest, meiRest);
+        if (rest->visible()) {
+            Convert::colorToMEI(rest, meiRest);
+        }
         this->writeBeamTypeAtt(rest, meiRest);
-        this->writeStaffIdenAtt(rest, staff, meiRest);
+        this->writeStaffIdentAtt(rest, staff, meiRest);
         // this->writeVerses(rest);
         const char prefix = (rest->visible()) ? 'r' : 's';
         std::string xmlId = this->getXmlIdFor(rest, prefix);
@@ -1346,7 +1435,7 @@ bool MeiExporter::writeRest(const Rest* rest, const Staff* staff)
         this->writeBeamAndTupletEnd(closingBeam, closingTuplet, closingBeamInTuplet);
 
         // Change invisible rests to space by simply adjusting the element name
-        if (!rest->visible()) {
+        if (!rest->visible() || rest->isGap()) {
             restNode.set_name("space");
         }
     }
@@ -1366,6 +1455,7 @@ bool MeiExporter::writeMRpt(const MeasureRepeat* measureRepeat)
 
     libmei::MRpt meiMRpt;
     Convert::colorToMEI(measureRepeat, meiMRpt);
+    meiMRpt.SetExpand(libmei::BOOLEAN_false);
     pugi::xml_node mRptNode = m_currentNode.append_child();
     meiMRpt.Write(mRptNode, this->getXmlIdFor(measureRepeat, 'm'));
 
@@ -1638,7 +1728,7 @@ bool MeiExporter::writeF(const FiguredBassItem* figuredBassItem)
 }
 
 /**
- * Write a fb (FigureBass).
+ * Write a fb (figured bass).
  */
 
 bool MeiExporter::writeFb(const FiguredBass* figuredBass, const std::string& startid)
@@ -1711,6 +1801,54 @@ bool MeiExporter::writeFermata(const Fermata* fermata, const libmei::xsdPositive
 }
 
 /**
+ * Write a fing and its text content.
+ */
+
+bool MeiExporter::writeFing(const Fingering* fing, const std::string& startid)
+{
+    IF_ASSERT_FAILED(fing) {
+        return false;
+    }
+
+    StringList meiLines;
+
+    pugi::xml_node fingNode = m_currentNode.append_child();
+    libmei::Fing meiFing = Convert::fingToMEI(fing, meiLines);
+    meiFing.SetStartid(startid);
+    meiFing.Write(fingNode, this->getXmlIdFor(fing, 'f'));
+
+    this->writeLines(fingNode, meiLines);
+
+    return true;
+}
+
+/**
+ * Write a gliss and its text content.
+ */
+
+bool MeiExporter::writeGliss(const Glissando* gliss, const std::string& startid)
+{
+    IF_ASSERT_FAILED(gliss) {
+        return false;
+    }
+
+    pugi::xml_node glissNode = m_currentNode.append_child();
+    String text = gliss->text();
+    libmei::Gliss meiGliss = Convert::glissToMEI(gliss);
+    meiGliss.SetStartid(startid);
+    meiGliss.Write(glissNode, this->getXmlIdFor(gliss, 'g'));
+
+    if (text.size() > 0) {
+        glissNode.text().set(text.toStdString().c_str());
+    }
+
+    // Add the node to the map of open control events
+    this->addNodeToOpenControlEvents(glissNode, gliss, startid);
+
+    return true;
+}
+
+/**
  * Write a hairpin.
  */
 
@@ -1753,6 +1891,27 @@ bool MeiExporter::writeHarm(const Harmony* harmony, const std::string& startid)
     meiHarm.Write(harmNode, this->getXmlIdFor(harmony, 'h'));
 
     this->writeLines(harmNode, meiLines);
+
+    return true;
+}
+
+/**
+ * Write a harpPedal.
+ */
+
+bool MeiExporter::writeHarpPedal(const HarpPedalDiagram* harpPedalDiagram, const std::string& startid)
+{
+    IF_ASSERT_FAILED(harpPedalDiagram) {
+        return false;
+    }
+    if (!harpPedalDiagram->isDiagram()) {
+        return true;
+    }
+
+    pugi::xml_node harpPedalNode = m_currentNode.append_child();
+    libmei::HarpPedal meiHarpPedal = Convert::harpPedalToMEI(harpPedalDiagram);
+    meiHarpPedal.SetStartid(startid);
+    meiHarpPedal.Write(harpPedalNode, this->getXmlIdFor(harpPedalDiagram, 'h'));
 
     return true;
 }
@@ -1863,6 +2022,33 @@ bool MeiExporter::writeRepeatMark(const Jump* jump, const Measure* measure)
 }
 
 /**
+ * Write a reh from a RehearsalMark.
+ */
+
+bool MeiExporter::writeRehearsalMark(const RehearsalMark* mark, const std::string& startid)
+{
+    IF_ASSERT_FAILED(mark) {
+        return false;
+    }
+
+    pugi::xml_node rehNode = m_currentNode.append_child();
+    String text = mark->plainText();
+    libmei::Reh meiReh;
+    Convert::colorToMEI(mark, meiReh);
+
+    if (text.size() > 0) {
+        rehNode.text().set(text.toStdString().c_str());
+    }
+
+    meiReh.SetStartid(startid);
+
+    std::string xmlId = this->getXmlIdFor(mark, 'r');
+    meiReh.Write(rehNode, xmlId);
+
+    return true;
+}
+
+/**
  * Write a repeatMark from a Marker.
  */
 
@@ -1926,7 +2112,12 @@ bool MeiExporter::writeTempo(const TempoText* tempoText, const std::string& star
 
     pugi::xml_node tempoNode = m_currentNode.append_child();
     libmei::Tempo meiTempo = Convert::tempoToMEI(tempoText, meiLines);
-    meiTempo.SetStartid(startid);
+    if (tempoText->tick() == tempoText->measure()->tick()) {
+        double tstamp = Convert::tstampFromFraction(tempoText->tick() - tempoText->measure()->tick(), tempoText->measure()->timesig());
+        meiTempo.SetTstamp(tstamp);
+    } else {
+        meiTempo.SetStartid(startid);
+    }
     meiTempo.Write(tempoNode, this->getXmlIdFor(tempoText, 't'));
 
     this->writeLinesWithSMuFL(tempoNode, meiLines);
@@ -1948,10 +2139,39 @@ bool MeiExporter::writeTie(const Tie* tie, const std::string& startid)
     libmei::Tie meiTie = Convert::tieToMEI(tie);
     meiTie.SetStartid(startid);
 
-    meiTie.Write(tieNode, this->getXmlIdFor(tie, 't'));
+    meiTie.Write(tieNode, this->getXmlIdFor(tie, tie->isLaissezVib() ? 'l' : 't'));
+
+    // Change open ties by simply adjusting the element name
+    if (tie->isLaissezVib()) {
+        tieNode.set_name("lv");
+    }
 
     // Add the node to the map of open control events
     this->addNodeToOpenControlEvents(tieNode, tie, startid);
+
+    return true;
+}
+
+/**
+ * Write a trill.
+ */
+
+bool MeiExporter::writeTrill(const Trill* trill, const std::string& startid)
+{
+    IF_ASSERT_FAILED(trill) {
+        return false;
+    }
+
+    pugi::xml_node trillNode = m_currentNode.append_child();
+    libmei::Trill meiTrill = Convert::trillToMEI(trill->ornament());
+    Convert::colorlineToMEI(trill, meiTrill);
+    meiTrill.SetExtender(libmei::BOOLEAN_true);
+    meiTrill.SetStartid(startid);
+
+    meiTrill.Write(trillNode, this->getXmlIdFor(trill, 't'));
+
+    // Add the node to the map of open control events
+    this->addNodeToOpenControlEvents(trillNode, trill, startid);
 
     return true;
 }
@@ -1995,7 +2215,7 @@ bool MeiExporter::writeBeamTypeAtt(const ChordRest* chordRest, libmei::AttTyped&
  * Write the cross-staff attribute (@staff) for a ChordRest (i.e., chord, note, rest or space).
  */
 
-bool MeiExporter::writeStaffIdenAtt(const ChordRest* chordRest, const Staff* staff, libmei::AttStaffIdent& staffIdentAtt)
+bool MeiExporter::writeStaffIdentAtt(const ChordRest* chordRest, const Staff* staff, libmei::AttStaffIdent& staffIdentAtt)
 {
     if (chordRest->staffMove() != 0) {
         staff_idx_t staffN = staff->idx() + chordRest->staffMove() + 1;
@@ -2071,7 +2291,7 @@ void MeiExporter::fillControlEventMap(const std::string& xmlId, const ChordRest*
             m_startingControlEventList.push_back(std::make_pair(element, "#" + xmlId));
         }
     }
-    // Breath a handled differently
+    // Breath is handled differently
     const Breath* breath = chordRest->hasBreathMark();
     if (breath) {
         m_startingControlEventList.push_back(std::make_pair(breath, "#" + xmlId));
@@ -2081,7 +2301,7 @@ void MeiExporter::fillControlEventMap(const std::string& xmlId, const ChordRest*
     auto spanners = smap.findOverlapping(chordRest->tick().ticks(), chordRest->tick().ticks());
     for (auto interval : spanners) {
         Spanner* spanner = interval.value;
-        if (spanner && (spanner->isHairpin() || spanner->isOttava() || spanner->isPedal() || spanner->isSlur())) {
+        if (spanner && (spanner->isHairpin() || spanner->isOttava() || spanner->isPedal() || spanner->isSlur() || spanner->isTrill())) {
             if (spanner->startCR() == chordRest) {
                 m_startingControlEventList.push_back(std::make_pair(spanner, "#" + xmlId));
             } else if (spanner->endCR() == chordRest) {
@@ -2092,9 +2312,11 @@ void MeiExporter::fillControlEventMap(const std::string& xmlId, const ChordRest*
     // For chords only
     if (chordRest->isChord()) {
         const Chord* chord = toChord(chordRest);
-        // Ornaments
+        // Ornaments and laissez vibrer
         for (const Articulation* articulation : chord->articulations()) {
-            if (articulation->isOrnament()) {
+            if (this->isLaissezVibrer(articulation->symId())) {
+                m_startingControlEventList.push_back(std::make_pair(articulation, "#" + xmlId));
+            } else if (articulation->isOrnament()) {
                 m_startingControlEventList.push_back(std::make_pair(articulation, "#" + xmlId));
             }
         }
@@ -2402,7 +2624,16 @@ std::string MeiExporter::generateHashID()
 
 std::string MeiExporter::getXmlIdFor(const EngravingItem* item, const char c)
 {
-    if (m_uids->hasUid(item)) {
+    const bool useMuseScoreIds = configuration()->meiUseMuseScoreIds();
+
+    if (useMuseScoreIds) {
+        EID eid = item->eid();
+        if (!eid.isValid()) {
+            eid = item->assignNewEID();
+        }
+        String eidStr = String::fromStdString(eid.toStdString().c_str());
+        return "mscore-" + eidStr.replace('/', '.').replace('+', '-').toStdString();
+    } else if (m_uids->hasUid(item)) {
         return m_uids->uid(item);
     }
 
@@ -2495,4 +2726,13 @@ std::string MeiExporter::getLayerXmlIdFor(layerElementCounter elementType)
                                                                                                                                      elementType)));
     }
     return id.toStdString();
+}
+
+/**
+ * Return true if the used symbol is a laissez vibrer
+ */
+
+bool MeiExporter::isLaissezVibrer(const SymId id)
+{
+    return id == SymId::articLaissezVibrerAbove || id == SymId::articLaissezVibrerBelow;
 }

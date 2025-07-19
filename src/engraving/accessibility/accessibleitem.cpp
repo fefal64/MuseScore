@@ -47,7 +47,7 @@ static QString readable(QString s)
 }
 
 AccessibleItem::AccessibleItem(EngravingItem* e, Role role)
-    : m_element(e), m_role(role)
+    : muse::Injectable(e->iocContext()), m_element(e), m_role(role)
 {
 }
 
@@ -176,6 +176,11 @@ QWindow* AccessibleItem::accessibleWindow() const
     return nullptr;
 }
 
+muse::modularity::ContextPtr AccessibleItem::iocContext() const
+{
+    return muse::Injectable::iocContext();
+}
+
 IAccessible::Role AccessibleItem::accessibleRole() const
 {
     return m_role;
@@ -247,8 +252,8 @@ void AccessibleItem::accessibleSelection(int selectionIndex, int* startOffset, i
         *startOffset = selectionRange.startPosition;
         *endOffset = selectionRange.endPosition;
     } else {
-        *startOffset = 0;
-        *endOffset = 0;
+        *startOffset = -1;
+        *endOffset = -1;
     }
 }
 
@@ -298,15 +303,21 @@ QString AccessibleItem::accessibleText(int startOffset, int endOffset) const
     return text;
 }
 
-QString AccessibleItem::accessibleTextBeforeOffset(int, TextBoundaryType, int*, int*) const
+QString AccessibleItem::accessibleTextBeforeOffset(int, TextBoundaryType, int* startOffset, int* endOffset) const
 {
     NOT_IMPLEMENTED;
+
+    *startOffset = -1;
+    *endOffset = -1;
     return QString();
 }
 
-QString AccessibleItem::accessibleTextAfterOffset(int, TextBoundaryType, int*, int*) const
+QString AccessibleItem::accessibleTextAfterOffset(int, TextBoundaryType, int* startOffset, int* endOffset) const
 {
     NOT_IMPLEMENTED;
+
+    *startOffset = -1;
+    *endOffset = -1;
     return QString();
 }
 

@@ -19,8 +19,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-#ifndef MU_NOTATION_SELECTNOTEDIALOG_H
-#define MU_NOTATION_SELECTNOTEDIALOG_H
+#pragma once
 
 #include "ui_selectnotedialog.h"
 
@@ -33,10 +32,11 @@ class Note;
 }
 
 namespace mu::notation {
-class SelectNoteDialog : public QDialog, Ui::SelectNoteDialog
+class SelectNoteDialog : public QDialog, Ui::SelectNoteDialog, public muse::Injectable
 {
     Q_OBJECT
-    INJECT(context::IGlobalContext, globalContext)
+
+    muse::Inject<context::IGlobalContext> globalContext = { this };
 
 public:
     SelectNoteDialog(QWidget* parent = nullptr);
@@ -52,7 +52,8 @@ private slots:
     void buttonClicked(QAbstractButton* button);
 
 private:
-    virtual void hideEvent(QHideEvent*);
+    void showEvent(QShowEvent*) override;
+    void hideEvent(QHideEvent*) override;
 
     INotationPtr currentNotation() const;
     INotationInteractionPtr currentNotationInteraction() const;
@@ -64,5 +65,3 @@ private:
     const mu::engraving::Note* m_note = nullptr;
 };
 }
-
-#endif // MU_NOTATION_SELECTNOTEDIALOG_H

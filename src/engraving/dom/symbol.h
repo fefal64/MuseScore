@@ -48,8 +48,6 @@ class Symbol : public BSymbol
     OBJECT_ALLOCATOR(engraving, Symbol)
     DECLARE_CLASSOF(ElementType::SYMBOL)
 
-    INJECT(IEngravingFontsProvider, engravingFonts)
-
 public:
     Symbol(const ElementType& type, EngravingItem* parent, ElementFlags f = ElementFlag::MOVABLE);
     Symbol(EngravingItem* parent, ElementFlags f = ElementFlag::MOVABLE);
@@ -67,6 +65,9 @@ public:
     AsciiStringView symName() const;
 
     String accessibleInfo() const override;
+
+    int subtype() const override { return int(m_sym); }
+    muse::TranslatableString subtypeUserName() const override;
 
     PropertyValue getProperty(Pid) const override;
     bool setProperty(Pid, const PropertyValue&) override;

@@ -30,7 +30,7 @@
 using namespace mu::notation;
 
 RealizeHarmonyDialog::RealizeHarmonyDialog(QWidget* parent)
-    : QDialog(parent)
+    : QDialog(parent), muse::Injectable(muse::iocCtxForQWidget(this))
 {
     setObjectName("RealizeHarmonyDialog");
     setupUi(this);
@@ -113,14 +113,7 @@ void RealizeHarmonyDialog::setChordList(const QList<Harmony*>& hlist)
         s += h->harmonyName() + u" ";
         QString intervals;
         QString noteNames;
-        int rootTpc;
-
-        //adjust for nashville function
-        if (h->harmonyType() == mu::engraving::HarmonyType::NASHVILLE) {
-            rootTpc = function2Tpc(h->hFunction(), h->staff()->key(h->tick()));
-        } else {
-            rootTpc = h->rootTpc();
-        }
+        int rootTpc = h->rootTpc();
 
         noteNames = tpc2name(rootTpc, mu::engraving::NoteSpellingType::STANDARD, mu::engraving::NoteCaseType::AUTO);
         mu::engraving::RealizedHarmony::PitchMap map = h->getRealizedHarmony().notes();

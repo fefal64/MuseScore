@@ -25,20 +25,26 @@
 
 #include <QObject>
 
+#include "global/async/asyncable.h"
+
 #include "modularity/ioc.h"
 #include "iinteractive.h"
 
 namespace muse::uicomponents {
-class ColorPickerModel : public QObject
+class ColorPickerModel : public QObject, public muse::Injectable, public async::Asyncable
 {
     Q_OBJECT
 
-    INJECT(IInteractive, interactive)
+    muse::Inject<IInteractive> interactive = { this };
 
 public:
     explicit ColorPickerModel(QObject* parent = nullptr);
 
-    Q_INVOKABLE QColor selectColor(const QColor& currentColor);
+    Q_INVOKABLE void selectColor(const QColor& currentColor);
+
+signals:
+    void colorSelected(QColor color);
+    void selectRejected();
 };
 }
 

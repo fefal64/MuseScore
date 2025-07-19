@@ -19,8 +19,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-#ifndef MU_NOTATION_STAFFTEXTPROPERTIESDIALOG_H
-#define MU_NOTATION_STAFFTEXTPROPERTIESDIALOG_H
+#pragma once
 
 #include "ui_stafftextpropertiesdialog.h"
 
@@ -32,11 +31,11 @@ class StaffTextBase;
 }
 
 namespace mu::notation {
-class StaffTextPropertiesDialog : public QDialog, public Ui::StaffTextPropertiesDialog
+class StaffTextPropertiesDialog : public QDialog, public Ui::StaffTextPropertiesDialog, public muse::Injectable
 {
     Q_OBJECT
 
-    INJECT(context::IGlobalContext, globalContext)
+    muse::Inject<context::IGlobalContext> globalContext = { this };
 
 public:
     StaffTextPropertiesDialog(QWidget* parent = nullptr);
@@ -47,6 +46,7 @@ private slots:
     void setSwingControls(bool);
 
 private:
+    void showEvent(QShowEvent*) override;
     void hideEvent(QHideEvent*) override;
 
     INotationUndoStackPtr undoStack() const;
@@ -55,5 +55,3 @@ private:
     engraving::StaffTextBase* m_staffText = nullptr;
 };
 }
-
-#endif // MU_NOTATION_STAFFTEXTPROPERTIESDIALOG_H

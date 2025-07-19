@@ -44,10 +44,9 @@ class ReadContext;
 namespace mu::engraving::read302 {
 class Read302 : public rw::IReader
 {
-    INJECT_STATIC(IEngravingFontsProvider, engravingFonts)
 public:
 
-    Err readScore(Score* score, XmlReader& e, rw::ReadInOutData* out) override;
+    muse::Ret readScore(Score* score, XmlReader& e, rw::ReadInOutData* out) override;
 
     bool pasteStaff(XmlReader& e, Segment* dst, staff_idx_t dstStaff, Fraction scale) override;
     void pasteSymbols(XmlReader& e, ChordRest* dst) override;

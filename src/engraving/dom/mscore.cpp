@@ -75,32 +75,6 @@ extern void initDrumset();
 
 MsError MScore::_error { MsError::MS_NO_ERROR };
 
-//---------------------------------------------------------
-//   init
-//---------------------------------------------------------
-
-void MScore::init()
-{
-    static bool initDone = false;
-    if (initDone) {
-        return;
-    }
-
-    defaultPlayDuration = 300;        // ms
-    warnPitchRange      = true;
-    warnGuitarBends     = true;
-    pedalEventsMinTicks = 1;
-
-    //
-    //  initialize styles
-    //
-    StaffType::initStaffTypes();
-    initDrumset();
-    FiguredBass::readConfigFile(String());
-
-    initDone = true;
-}
-
 void MScore::registerUiTypes()
 {
 #ifdef SCRIPT_INTERFACE
@@ -151,6 +125,7 @@ std::string MScore::errorToString(MsError err)
     case MsError::CANNOT_CHANGE_LOCAL_TIMESIG_HAS_EXCERPTS: return "CANNOT_CHANGE_LOCAL_TIMESIG_HAS_EXCERPTS";
     case MsError::CORRUPTED_MEASURE: return "CORRUPTED_MEASURE";
     case MsError::CANNOT_REMOVE_KEY_SIG: return "CANNOT_REMOVE_KEY_SIG";
+    case MsError::CANNOT_JOIN_MEASURE_STAFFTYPE_CHANGE: return "CANNOT_JOIN_MEASURE_STAFFTYPE_CHANGE";
     }
 
     return {};

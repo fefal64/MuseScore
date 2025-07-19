@@ -19,20 +19,28 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-
-#ifndef MU_ENGRAVING_WRITECONTEXT_H
-#define MU_ENGRAVING_WRITECONTEXT_H
+#pragma once
 
 #include <map>
 
 #include "containers.h"
 #include "../linksindexer.h"
 #include "dom/select.h"
+#include "dom/score.h"
 
 namespace mu::engraving::write {
 class WriteContext
 {
 public:
+
+    WriteContext(const Score* s)
+        : m_score(s) {}
+
+    std::shared_ptr<IEngravingConfiguration> configuration() const
+    {
+        return m_score->configuration();
+    }
+
     int assignLocalIndex(const Location& mainElementLocation);
     void setLidLocalIndex(int lid, int localIndex);
     int lidLocalIndex(int lid) const;
@@ -53,16 +61,15 @@ public:
     bool excerptmode() const { return _excerptmode; }
     bool isMsczMode() const { return _msczMode; }
     bool writeTrack() const { return _writeTrack; }
-    bool writePosition() const { return _writePosition; }
 
     void setClipboardmode(bool v) { _clipboardmode = v; }
     void setExcerptmode(bool v) { _excerptmode = v; }
     void setIsMsczMode(bool v) { _msczMode = v; }
     void setWriteTrack(bool v) { _writeTrack= v; }
-    void setWritePosition(bool v) { _writePosition = v; }
 
     void setFilter(SelectionFilter f) { _filter = f; }
     bool canWrite(const EngravingItem*) const;
+    bool canWriteNoteIdx(size_t noteIdx, size_t totalNotesInChord) const;
     bool canWriteVoice(track_idx_t track) const;
 
     inline bool operator==(const WriteContext& c) const
@@ -75,7 +82,6 @@ public:
                && _excerptmode == c._excerptmode
                && _msczMode == c._msczMode
                && _writeTrack == c._writeTrack
-               && _writePosition == c._writePosition
                && _filter == c._filter
                && m_linksIndexer == c.m_linksIndexer
                && m_lidLocalIndices == c.m_lidLocalIndices;
@@ -84,6 +90,8 @@ public:
     inline bool operator!=(const WriteContext& c) const { return !this->operator==(c); }
 
 private:
+
+    const Score* m_score = nullptr;
 
     Fraction _curTick    { 0, 1 };           // used to optimize output
     Fraction _tickDiff   { 0, 1 };
@@ -94,7 +102,6 @@ private:
     bool _excerptmode    { false };     // true when writing a part
     bool _msczMode       { true };      // false if writing into *.msc file
     bool _writeTrack     { false };
-    bool _writePosition  { false };
 
     SelectionFilter _filter;
 
@@ -102,5 +109,3 @@ private:
     std::map<int, int> m_lidLocalIndices;
 };
 }
-
-#endif // MU_ENGRAVING_WRITECONTEXT_H

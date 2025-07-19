@@ -39,12 +39,17 @@ using namespace muse;
 using namespace mu::engraving;
 using namespace mu::engraving::write;
 
+Writer::Writer(const muse::modularity::ContextPtr& iocCtx)
+    : muse::Injectable(iocCtx)
+{
+}
+
 bool Writer::writeScore(Score* score, io::IODevice* device, bool onlySelection, rw::WriteInOutData* inout)
 {
     TRACEFUNC;
 
     XmlWriter xml(device);
-    WriteContext ctx;
+    WriteContext ctx(score);
     if (inout) {
         ctx = inout->ctx;
     }
@@ -56,7 +61,6 @@ bool Writer::writeScore(Score* score, io::IODevice* device, bool onlySelection, 
     if (!MScore::testMode) {
         xml.tag("programVersion", application()->version().toString());
         xml.tag("programRevision", application()->revision());
-        xml.tag("LastEID", score->masterScore()->getEID()->lastID());
     }
 
     compat::WriteScoreHook hook;
@@ -84,7 +88,7 @@ void Writer::write(Score* score, XmlWriter& xml, WriteContext& ctx, bool selecti
 
     // if we have multi measure rests and some parts are hidden,
     // then some layout information is missing:
-    // relayout with all parts set visible
+    // relayout with all parts set visible (but rollback at end)
 
     std::list<Part*> hiddenParts;
     bool unhide = false;
@@ -92,7 +96,7 @@ void Writer::write(Score* score, XmlWriter& xml, WriteContext& ctx, bool selecti
         for (Part* part : score->m_parts) {
             if (!part->show()) {
                 if (!unhide) {
-                    score->startCmd();
+                    score->startCmd(TranslatableString::untranslatable("Unhide instruments for save"));
                     unhide = true;
                 }
                 part->undoChangeProperty(Pid::VISIBLE, true);
@@ -108,6 +112,8 @@ void Writer::write(Score* score, XmlWriter& xml, WriteContext& ctx, bool selecti
     }
 
     xml.startElement(score);
+
+    TWrite::writeItemEid(score, xml, ctx);
 
     if (Excerpt* e = score->excerpt()) {
         if (!e->name().empty()) {
@@ -187,17 +193,12 @@ void Writer::write(Score* score, XmlWriter& xml, WriteContext& ctx, bool selecti
             break;
         }
         if (saveSysObjStaves) {
-            // write which staves currently have system objects above them
             xml.startElement("SystemObjects");
             for (Staff* s : score->m_systemObjectStaves) {
                 IF_ASSERT_FAILED(s->idx() != muse::nidx) {
                     continue;
                 }
-                // TODO: when we add more granularity to system object display, construct this string per staff
-                String sysObjForStaff = u"barNumbers=\"false\"";
-                // for now, everything except bar numbers is shown on system object staves
-                // (also, the code to display bar numbers on system staves other than the first currently does not exist!)
-                xml.tag("Instance", { { "staffId", s->idx() + 1 }, { "barNumbers", "false" } });
+                xml.tag("Instance", { { "staffId", s->idx() + 1 } });
             }
             xml.endElement();
         }
@@ -255,7 +256,9 @@ void Writer::write(Score* score, XmlWriter& xml, WriteContext& ctx, bool selecti
 
     hook.onWriteExcerpts302(score, xml, ctx, selectionOnly);
 
-    xml.endElement();
+    TWrite::writeSystemLocks(score, xml);
+
+    xml.endElement(); // score
 
     if (unhide) {
         score->endCmd(true);
@@ -265,7 +268,7 @@ void Writer::write(Score* score, XmlWriter& xml, WriteContext& ctx, bool selecti
 void Writer::writeSegments(XmlWriter& xml, SelectionFilter* filter, track_idx_t strack, track_idx_t etrack,
                            Segment* sseg, Segment* eseg, bool writeSystemElements, bool forceTimeSig, Fraction& curTick)
 {
-    WriteContext ctx;
+    WriteContext ctx(sseg->score());
     ctx.setClipboardmode(true);
     ctx.setFilter(*filter);
     ctx.setCurTrack(strack);
@@ -276,7 +279,7 @@ void Writer::writeSegments(XmlWriter& xml, SelectionFilter* filter, track_idx_t 
 
 void Writer::doWriteItem(const EngravingItem* item, XmlWriter& xml)
 {
-    WriteContext ctx;
+    WriteContext ctx(item->score());
     ctx.setClipboardmode(true);
     TWrite::writeItem(item, xml, ctx);
 }

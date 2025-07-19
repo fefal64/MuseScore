@@ -74,11 +74,12 @@ if (OS_IS_MAC)
         SKIP_PRECOMPILE_HEADERS ON
     )
 
-    set(MODULE_INCLUDE
+    set(MODULE_INCLUDE_PRIVATE
         ${CARBON_LIBRARY}
-        ${Qt6Gui_PRIVATE_INCLUDE_DIRS}
     )
 endif(OS_IS_MAC)
+
+list(APPEND MODULE_LINK Qt::Gui Qt::Qml)
 
 setup_module()
 

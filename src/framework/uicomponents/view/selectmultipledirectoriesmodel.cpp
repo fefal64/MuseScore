@@ -28,7 +28,7 @@
 using namespace muse::uicomponents;
 
 SelectMultipleDirectoriesModel::SelectMultipleDirectoriesModel(QObject* parent)
-    : QAbstractListModel(parent), m_selectionModel(new ItemMultiSelectionModel(this))
+    : QAbstractListModel(parent), muse::Injectable(muse::iocCtxForQmlObject(this)), m_selectionModel(new ItemMultiSelectionModel(this))
 {
     connect(m_selectionModel, &ItemMultiSelectionModel::selectionChanged, this, &SelectMultipleDirectoriesModel::selectionChanged);
 }
@@ -124,7 +124,7 @@ void SelectMultipleDirectoriesModel::removeSelectedDirectories()
 
 void SelectMultipleDirectoriesModel::addDirectory()
 {
-    io::path_t path = interactive()->selectDirectory(muse::qtrc("ui", "Choose directory"), m_dir.toStdString());
+    io::path_t path = interactive()->selectDirectory(muse::trc("ui", "Choose directory"), m_dir.toStdString());
     if (path.empty()) {
         return;
     }

@@ -19,8 +19,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-#ifndef MU_ENGRAVING_ENGRAVINGFONT_H
-#define MU_ENGRAVING_ENGRAVINGFONT_H
+#pragma once
 
 #include <unordered_map>
 
@@ -49,12 +48,13 @@ class Painter;
 namespace mu::engraving {
 class Shape;
 
-class EngravingFont : public IEngravingFont
+class EngravingFont : public IEngravingFont, public muse::Injectable
 {
-    INJECT_STATIC(muse::draw::IFontProvider, fontProvider)
-    INJECT_STATIC(IEngravingFontsProvider, engravingFonts)
+    muse::Inject<muse::draw::IFontProvider> fontProvider = { this };
+    muse::Inject<IEngravingFontsProvider> engravingFonts = { this };
 public:
-    EngravingFont(const std::string& name, const std::string& family, const muse::io::path_t& filePath);
+    EngravingFont(const std::string& name, const std::string& family, const muse::io::path_t& filePath,
+                  const muse::io::path_t& metadataPath, const muse::modularity::ContextPtr& iocCtx);
     EngravingFont(const EngravingFont& other);
 
     const std::string& name() const override;
@@ -138,10 +138,9 @@ private:
     std::string m_name;
     std::string m_family;
     muse::io::path_t m_fontPath;
+    muse::io::path_t m_metadataPath;
 
     std::unordered_map<Sid, PropertyValue> m_engravingDefaults;
     double m_textEnclosureThickness = 0;
 };
 }
-
-#endif // MU_ENGRAVING_ENGRAVINGFONT_H

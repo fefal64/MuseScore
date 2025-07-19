@@ -36,9 +36,12 @@
 #include "engraving/dom/dynamic.h"
 #include "engraving/dom/fermata.h"
 #include "engraving/dom/figuredbass.h"
+#include "engraving/dom/fingering.h"
+#include "engraving/dom/glissando.h"
 #include "engraving/dom/hairpin.h"
 #include "engraving/dom/harmony.h"
 #include "engraving/dom/jump.h"
+#include "engraving/dom/laissezvib.h"
 #include "engraving/dom/lyrics.h"
 #include "engraving/dom/marker.h"
 #include "engraving/dom/measure.h"
@@ -300,7 +303,7 @@ libmei::Arpeg Convert::arpegToMEI(const engraving::Arpeggio* arpeggio)
 
 void Convert::articFromMEI(engraving::Articulation* articulation, const libmei::Artic& meiArtic, bool& warning)
 {
-    engraving::SymId symId = engraving::SymId::articAccentAbove;
+    engraving::SymId symId = engraving::SymId::noSym;
 
     // @artic
     if (meiArtic.HasArtic() && (meiArtic.GetArtic().size() == 1)) {
@@ -567,56 +570,6 @@ int Convert::breaksecToMEI(engraving::BeamMode beamMode)
     }
 
     return breaksec;
-}
-
-Convert::BracketStruct Convert::bracketFromMEI(const libmei::StaffGrp& meiStaffGrp)
-{
-    Convert::BracketStruct bracketSt;
-
-    switch (meiStaffGrp.GetSymbol()) {
-    case (libmei::staffGroupingSym_SYMBOL_bracket): bracketSt.bracketType = engraving::BracketType::NORMAL;
-        break;
-    case (libmei::staffGroupingSym_SYMBOL_brace): bracketSt.bracketType = engraving::BracketType::BRACE;
-        break;
-    case (libmei::staffGroupingSym_SYMBOL_bracketsq): bracketSt.bracketType = engraving::BracketType::SQUARE;
-        break;
-    case (libmei::staffGroupingSym_SYMBOL_line): bracketSt.bracketType = engraving::BracketType::LINE;
-        break;
-    case (libmei::staffGroupingSym_SYMBOL_none): bracketSt.bracketType = engraving::BracketType::NO_BRACKET;
-        break;
-    default: break;
-    }
-
-    if (meiStaffGrp.HasBarThru() && meiStaffGrp.GetBarThru() == libmei::BOOLEAN_true) {
-        bracketSt.barLineSpan = 1;
-    }
-
-    return bracketSt;
-}
-
-libmei::StaffGrp Convert::bracketToMEI(const engraving::BracketType bracket, int barLineSpan)
-{
-    libmei::StaffGrp meiStaffGrp;
-    // @symbol
-    switch (bracket) {
-    case (engraving::BracketType::NORMAL): meiStaffGrp.SetSymbol(libmei::staffGroupingSym_SYMBOL_bracket);
-        break;
-    case (engraving::BracketType::BRACE): meiStaffGrp.SetSymbol(libmei::staffGroupingSym_SYMBOL_brace);
-        break;
-    case (engraving::BracketType::SQUARE): meiStaffGrp.SetSymbol(libmei::staffGroupingSym_SYMBOL_bracketsq);
-        break;
-    case (engraving::BracketType::LINE): meiStaffGrp.SetSymbol(libmei::staffGroupingSym_SYMBOL_line);
-        break;
-    case (engraving::BracketType::NO_BRACKET): meiStaffGrp.SetSymbol(libmei::staffGroupingSym_SYMBOL_none);
-        break;
-    default: break;
-    }
-    // @bar.thru
-    if (barLineSpan > 0) {
-        meiStaffGrp.SetBarThru(libmei::BOOLEAN_true);
-    }
-
-    return meiStaffGrp;
 }
 
 void Convert::breathFromMEI(engraving::Breath* breath, const libmei::Breath& meiBreath, bool& warning)
@@ -921,6 +874,7 @@ libmei::Clef Convert::clefToMEI(engraving::ClefType clef)
     switch (clef) {
     case (engraving::ClefType::G8_VB):
     case (engraving::ClefType::G8_VA):
+    case (engraving::ClefType::G8_VB_C):
     case (engraving::ClefType::F8_VB):
     case (engraving::ClefType::F_8VA):
     case (engraving::ClefType::C4_8VB):
@@ -1071,10 +1025,11 @@ void Convert::dirFromMEI(engraving::TextBase* textBase, const StringList& meiLin
     // @type
     // already process in Convert::elementTypeFor called for determining the factory to call in MeiImporter
 
+    // @color
+    Convert::colorFromMEI(textBase, meiDir);
+
     // text
     textBase->setXmlText(meiLines.join(u"\n"));
-
-    return;
 }
 
 void Convert::dirFromMEI(engraving::TextLineBase* textLineBase, const StringList& meiLines, const libmei::Dir& meiDir, bool& warning)
@@ -1113,8 +1068,6 @@ void Convert::dirFromMEI(engraving::TextLineBase* textLineBase, const StringList
     // text
     textLineBase->setBeginText(meiLines.join(u"\n"));
     textLineBase->setPropertyFlags(engraving::Pid::BEGIN_TEXT, engraving::PropertyFlags::UNSTYLED);
-
-    return;
 }
 
 libmei::Dir Convert::dirToMEI(const engraving::TextBase* textBase, StringList& meiLines)
@@ -1140,6 +1093,9 @@ libmei::Dir Convert::dirToMEI(const engraving::TextBase* textBase, StringList& m
         }
         meiDir.SetType(dirType);
     }
+
+    // @color
+    Convert::colorToMEI(textBase, meiDir);
 
     // text content - only split lines
     meiLines = String(textBase->plainText()).split(u"\n");
@@ -1248,10 +1204,7 @@ void Convert::dynamFromMEI(engraving::Dynamic* dynamic, const StringList& meiLin
     warning = false;
 
     // @place
-    if (meiDynam.HasPlace()) {
-        dynamic->setPlacement(meiDynam.GetPlace() == libmei::STAFFREL_above ? engraving::PlacementV::ABOVE : engraving::PlacementV::BELOW);
-        dynamic->setPropertyFlags(engraving::Pid::PLACEMENT, engraving::PropertyFlags::UNSTYLED);
-    }
+    dynamic->setProperty(engraving::Pid::DIRECTION, Convert::directionFromMEI(meiDynam.GetPlace()));
 
     // @label
     if (meiDynam.HasLabel()) {
@@ -1261,6 +1214,9 @@ void Convert::dynamFromMEI(engraving::Dynamic* dynamic, const StringList& meiLin
     else if (meiLines.size() > 0 && !meiLines.at(0).contains(' ')) {
         dynamic->setDynamicType(meiLines.at(0));
     }
+
+    // @layer
+    Convert::layerIdentFromMEI(dynamic, meiDynam);
 
     // text content
     StringList lines;
@@ -1290,7 +1246,8 @@ void Convert::dynamFromMEI(engraving::Dynamic* dynamic, const StringList& meiLin
     }
     dynamic->setXmlText(lines.join(u"\n"));
 
-    return;
+    // @color
+    Convert::colorFromMEI(dynamic, meiDynam);
 }
 
 libmei::Dynam Convert::dynamToMEI(const engraving::Dynamic* dynamic, StringList& meiLines)
@@ -1309,9 +1266,13 @@ libmei::Dynam Convert::dynamToMEI(const engraving::Dynamic* dynamic, StringList&
     libmei::Dynam meiDynam;
 
     // @place
-    if (dynamic->propertyFlags(engraving::Pid::PLACEMENT) == engraving::PropertyFlags::UNSTYLED) {
-        meiDynam.SetPlace(Convert::placeToMEI(dynamic->placement()));
-    }
+    meiDynam.SetPlace(Convert::directionToMEI(dynamic->direction()));
+
+    // @layer
+    Convert::layerIdentToMEI(dynamic, meiDynam);
+
+    // @staff
+    Convert::staffIdentToMEI(dynamic, meiDynam);
 
     // @label
     if (dynamic->dynamicType() != engraving::DynamicType::OTHER) {
@@ -1347,6 +1308,9 @@ libmei::Dynam Convert::dynamToMEI(const engraving::Dynamic* dynamic, StringList&
         */
     }
     meiLines = String(meiText).split(u"\n");
+
+    // @color
+    Convert::colorToMEI(dynamic, meiDynam);
 
     return meiDynam;
 }
@@ -1387,8 +1351,6 @@ void Convert::endingFromMEI(engraving::Volta* volta, const libmei::Ending& meiEn
     } else {
         volta->setVoltaType(engraving::Volta::Type::CLOSED);
     }
-
-    return;
 }
 
 libmei::Ending Convert::endingToMEI(const engraving::Volta* volta)
@@ -1444,9 +1406,10 @@ void Convert::fbFromMEI(engraving::FiguredBass* figuredBass, const libmei::Harm&
 {
     warning = false;
 
-    UNUSED(figuredBass);
-    UNUSED(meiHarm);
     UNUSED(meiFb);
+
+    // @color
+    Convert::colorFromMEI(figuredBass, meiHarm);
 }
 
 std::pair<libmei::Harm, libmei::Fb> Convert::fbToMEI(const engraving::FiguredBass* figuredBass)
@@ -1454,7 +1417,11 @@ std::pair<libmei::Harm, libmei::Fb> Convert::fbToMEI(const engraving::FiguredBas
     libmei::Harm meiHarm;
     libmei::Fb meiFb;
 
-    UNUSED(figuredBass);
+    // @staff
+    Convert::staffIdentToMEI(figuredBass, meiHarm);
+
+    // @color
+    Convert::colorToMEI(figuredBass, meiHarm);
 
     return { meiHarm, meiFb };
 }
@@ -1556,6 +1523,92 @@ libmei::Fermata Convert::fermataToMEI(const engraving::Fermata* fermata)
     return meiFermata;
 }
 
+void Convert::fingFromMEI(engraving::Fingering* fing, const StringList& meiLines, const libmei::Fing& meiFing, bool& warning)
+{
+    IF_ASSERT_FAILED(fing) {
+        return;
+    }
+
+    warning = false;
+
+    // text content
+    fing->setPlainText(meiLines.join(u"\n"));
+
+    // @place
+    if (meiFing.HasPlace()) {
+        fing->setPlacement(meiFing.GetPlace() == libmei::STAFFREL_above ? engraving::PlacementV::ABOVE : engraving::PlacementV::BELOW);
+        fing->setPropertyFlags(engraving::Pid::PLACEMENT, engraving::PropertyFlags::UNSTYLED);
+    }
+
+    // @color
+    Convert::colorFromMEI(fing, meiFing);
+}
+
+libmei::Fing Convert::fingToMEI(const engraving::Fingering* fing, StringList& meiLines)
+{
+    libmei::Fing meiFing;
+
+    // content
+    String plainText = fing->plainText();
+    meiLines = plainText.split(u"\n");
+
+    // @place
+    if (fing->propertyFlags(engraving::Pid::PLACEMENT) == engraving::PropertyFlags::UNSTYLED) {
+        meiFing.SetPlace(Convert::placeToMEI(fing->placement()));
+    }
+
+    // @color
+    Convert::colorToMEI(fing, meiFing);
+
+    return meiFing;
+}
+
+void Convert::glissFromMEI(engraving::Glissando* gliss, const libmei::Gliss& meiGliss, bool& warning)
+{
+    warning = false;
+
+    // @lform
+    bool lineWarning;
+    switch (meiGliss.GetLform()) {
+    case libmei::LINEFORM_dotted:
+    case libmei::LINEFORM_dashed:
+    case libmei::LINEFORM_solid:
+        gliss->setGlissandoType(engraving::GlissandoType::STRAIGHT);
+        gliss->setLineStyle(Convert::lineFromMEI(meiGliss.GetLform(), lineWarning));
+        break;
+    case libmei::LINEFORM_wavy:
+    default:
+        gliss->setGlissandoType(engraving::GlissandoType::WAVY);
+        break;
+    }
+
+    // @color
+    Convert::colorlineFromMEI(gliss, meiGliss);
+}
+
+libmei::Gliss Convert::glissToMEI(const engraving::Glissando* gliss)
+{
+    libmei::Gliss meiGliss;
+
+    // @lform
+    switch (gliss->glissandoType()) {
+    case engraving::GlissandoType::STRAIGHT:
+        meiGliss.SetLform(Convert::lineToMEI(gliss->lineStyle()));
+        break;
+    case engraving::GlissandoType::WAVY:
+        meiGliss.SetLform(libmei::LINEFORM_wavy);
+        break;
+    default:
+        meiGliss.SetLform(libmei::LINEFORM_NONE);
+        break;
+    }
+
+    // @color
+    Convert::colorlineToMEI(gliss, meiGliss);
+
+    return meiGliss;
+}
+
 std::pair<bool, engraving::NoteType> Convert::gracegrpFromMEI(const libmei::graceGrpLog_ATTACH meiAttach, const libmei::data_GRACE meiGrace,
                                                               bool& warning)
 {
@@ -1591,11 +1644,7 @@ void Convert::hairpinFromMEI(engraving::Hairpin* hairpin, const libmei::Hairpin&
     warning = false;
 
     // @place
-    if (meiHairpin.HasPlace()) {
-        hairpin->setPlacement(meiHairpin.GetPlace()
-                              == libmei::STAFFREL_above ? engraving::PlacementV::ABOVE : engraving::PlacementV::BELOW);
-        hairpin->setPropertyFlags(engraving::Pid::PLACEMENT, engraving::PropertyFlags::UNSTYLED);
-    }
+    hairpin->setProperty(engraving::Pid::DIRECTION, Convert::directionFromMEI(meiHairpin.GetPlace()));
 
     // @form
     if (meiHairpin.GetForm() == libmei::hairpinLog_FORM_cres) {
@@ -1612,8 +1661,16 @@ void Convert::hairpinFromMEI(engraving::Hairpin* hairpin, const libmei::Hairpin&
         warning = (warning || lformWarning);
     }
 
+    // @niente
+    if (meiHairpin.HasNiente()) {
+        hairpin->setHairpinCircledTip(meiHairpin.GetNiente() == libmei::BOOLEAN_true);
+    }
+
     // @color
     Convert::colorlineFromMEI(hairpin, meiHairpin);
+
+    // @layer
+    Convert::layerIdentFromMEI(hairpin, meiHairpin);
 }
 
 libmei::Hairpin Convert::hairpinToMEI(const engraving::Hairpin* hairpin)
@@ -1621,9 +1678,7 @@ libmei::Hairpin Convert::hairpinToMEI(const engraving::Hairpin* hairpin)
     libmei::Hairpin meiHairpin;
 
     // @place
-    if (hairpin->propertyFlags(engraving::Pid::PLACEMENT) == engraving::PropertyFlags::UNSTYLED) {
-        meiHairpin.SetPlace(Convert::placeToMEI(hairpin->placement()));
-    }
+    meiHairpin.SetPlace(Convert::directionToMEI(hairpin->direction()));
 
     // @form
     if (hairpin->hairpinType() == engraving::HairpinType::CRESC_HAIRPIN) {
@@ -1637,8 +1692,19 @@ libmei::Hairpin Convert::hairpinToMEI(const engraving::Hairpin* hairpin)
         meiHairpin.SetLform(Convert::lineToMEI(hairpin->lineStyle()));
     }
 
+    // @niente
+    if (hairpin->hairpinCircledTip()) {
+        meiHairpin.SetNiente(libmei::BOOLEAN_true);
+    }
+
     // @color
     Convert::colorlineToMEI(hairpin, meiHairpin);
+
+    // @layer
+    Convert::layerIdentToMEI(hairpin, meiHairpin);
+
+    // @staff
+    Convert::staffIdentToMEI(hairpin, meiHairpin);
 
     return meiHairpin;
 }
@@ -1668,7 +1734,8 @@ void Convert::harmFromMEI(engraving::Harmony* harmony, const StringList& meiLine
         harmony->setPropertyFlags(engraving::Pid::PLACEMENT, engraving::PropertyFlags::UNSTYLED);
     }
 
-    return;
+    // @color
+    Convert::colorFromMEI(harmony, meiHarm);
 }
 
 libmei::Harm Convert::harmToMEI(const engraving::Harmony* harmony, StringList& meiLines)
@@ -1697,7 +1764,131 @@ libmei::Harm Convert::harmToMEI(const engraving::Harmony* harmony, StringList& m
         meiHarm.SetPlace(Convert::placeToMEI(harmony->placement()));
     }
 
+    // @staff
+    Convert::staffIdentToMEI(harmony, meiHarm);
+
+    // @color
+    Convert::colorToMEI(harmony, meiHarm);
+
     return meiHarm;
+}
+
+void Convert::harpPedalFromMEI(engraving::HarpPedalDiagram* harpPedalDiagram, const libmei::HarpPedal& meiHarpPedal, bool& warning)
+{
+    IF_ASSERT_FAILED(harpPedalDiagram) {
+        return;
+    }
+
+    warning = false;
+
+    harpPedalDiagram->setIsDiagram(true);
+
+    // @d
+    harpPedalDiagram->setPedal(engraving::HarpStringType::D, harpPedalPositionFromMEI(meiHarpPedal.GetD()));
+    // @c
+    harpPedalDiagram->setPedal(engraving::HarpStringType::C, harpPedalPositionFromMEI(meiHarpPedal.GetC()));
+    // @b
+    harpPedalDiagram->setPedal(engraving::HarpStringType::B, harpPedalPositionFromMEI(meiHarpPedal.GetB()));
+    // @e
+    harpPedalDiagram->setPedal(engraving::HarpStringType::E, harpPedalPositionFromMEI(meiHarpPedal.GetE()));
+    // @f
+    harpPedalDiagram->setPedal(engraving::HarpStringType::F, harpPedalPositionFromMEI(meiHarpPedal.GetF()));
+    // @g
+    harpPedalDiagram->setPedal(engraving::HarpStringType::G, harpPedalPositionFromMEI(meiHarpPedal.GetG()));
+    // @a
+    harpPedalDiagram->setPedal(engraving::HarpStringType::A, harpPedalPositionFromMEI(meiHarpPedal.GetA()));
+
+    // @place
+    if (meiHarpPedal.HasPlace()) {
+        harpPedalDiagram->setPlacement(meiHarpPedal.GetPlace()
+                                       == libmei::STAFFREL_above ? engraving::PlacementV::ABOVE : engraving::PlacementV::BELOW);
+        harpPedalDiagram->setPropertyFlags(engraving::Pid::PLACEMENT, engraving::PropertyFlags::UNSTYLED);
+    }
+
+    // @color
+    Convert::colorFromMEI(harpPedalDiagram, meiHarpPedal);
+}
+
+libmei::HarpPedal Convert::harpPedalToMEI(const engraving::HarpPedalDiagram* harpPedalDiagram)
+{
+    libmei::HarpPedal meiHarpPedal;
+
+    // @d
+    meiHarpPedal.SetD(harpPedalPositionToMEI(harpPedalDiagram->getPedalState().at(0)));
+    // @c
+    meiHarpPedal.SetC(harpPedalPositionToMEI(harpPedalDiagram->getPedalState().at(1)));
+    // @b
+    meiHarpPedal.SetB(harpPedalPositionToMEI(harpPedalDiagram->getPedalState().at(2)));
+    // @e
+    meiHarpPedal.SetE(harpPedalPositionToMEI(harpPedalDiagram->getPedalState().at(3)));
+    // @f
+    meiHarpPedal.SetF(harpPedalPositionToMEI(harpPedalDiagram->getPedalState().at(4)));
+    // @g
+    meiHarpPedal.SetG(harpPedalPositionToMEI(harpPedalDiagram->getPedalState().at(5)));
+    // @a
+    meiHarpPedal.SetA(harpPedalPositionToMEI(harpPedalDiagram->getPedalState().at(6)));
+
+    // @place
+    if (harpPedalDiagram->propertyFlags(engraving::Pid::PLACEMENT) == engraving::PropertyFlags::UNSTYLED) {
+        meiHarpPedal.SetPlace(Convert::placeToMEI(harpPedalDiagram->placement()));
+    }
+
+    // @color
+    Convert::colorToMEI(harpPedalDiagram, meiHarpPedal);
+
+    // @staff
+    Convert::staffIdentToMEI(harpPedalDiagram, meiHarpPedal);
+
+    return meiHarpPedal;
+}
+
+libmei::data_HARPPEDALPOSITION Convert::harpPedalPositionToMEI(const engraving::PedalPosition& pedalPosition)
+{
+    switch (pedalPosition) {
+    case engraving::PedalPosition::FLAT:
+        return libmei::HARPPEDALPOSITION_f;
+    case engraving::PedalPosition::NATURAL:
+        return libmei::HARPPEDALPOSITION_n;
+    case engraving::PedalPosition::SHARP:
+        return libmei::HARPPEDALPOSITION_s;
+    case engraving::PedalPosition::UNSET:
+    default:
+        return libmei::HARPPEDALPOSITION_NONE;
+    }
+}
+
+engraving::PedalPosition Convert::harpPedalPositionFromMEI(const libmei::data_HARPPEDALPOSITION& pedalPosition)
+{
+    switch (pedalPosition) {
+    case libmei::HARPPEDALPOSITION_f:
+        return engraving::PedalPosition::FLAT;
+    case libmei::HARPPEDALPOSITION_n:
+        return engraving::PedalPosition::NATURAL;
+    case libmei::HARPPEDALPOSITION_s:
+        return engraving::PedalPosition::SHARP;
+    default:
+        return engraving::PedalPosition::UNSET;
+    }
+}
+
+void Convert::lvFromMEI(engraving::LaissezVib* lv, const libmei::Lv& meiLv, bool& warning)
+{
+    warning = false;
+
+    // @curvedir
+    if (meiLv.HasCurvedir()) {
+        lv->setSlurDirection(Convert::curvedirFromMEI(meiLv.GetCurvedir(), warning));
+    }
+
+    // @lform
+    if (meiLv.HasLform()) {
+        bool typeWarning = false;
+        lv->setStyleType(Convert::slurstyleFromMEI(meiLv.GetLform(), typeWarning));
+        warning = (warning || typeWarning);
+    }
+
+    // @color
+    Convert::colorFromMEI(lv, meiLv);
 }
 
 void Convert::jumpFromMEI(engraving::Jump* jump, const libmei::RepeatMark& meiRepeatMark, bool& warning)
@@ -1732,9 +1923,10 @@ void Convert::jumpFromMEI(engraving::Jump* jump, const libmei::RepeatMark& meiRe
         }
     }
 
-    jump->setJumpType(jumpType);
+    // @color
+    Convert::colorFromMEI(jump, meiRepeatMark);
 
-    return;
+    jump->setJumpType(jumpType);
 }
 
 libmei::RepeatMark Convert::jumpToMEI(const engraving::Jump* jump, String& text)
@@ -1776,6 +1968,9 @@ libmei::RepeatMark Convert::jumpToMEI(const engraving::Jump* jump, String& text)
     default:
         text = jump->plainText();
     }
+
+    // @color
+    Convert::colorToMEI(jump, meiRepeatMark);
 
     return meiRepeatMark;
 }
@@ -1867,7 +2062,8 @@ void Convert::markerFromMEI(engraving::Marker* marker, const libmei::RepeatMark&
 
     marker->setMarkerType(markerType);
 
-    return;
+    // @color
+    Convert::colorFromMEI(marker, meiRepeatMark);
 }
 
 libmei::RepeatMark Convert::markerToMEI(const engraving::Marker* marker, String& text)
@@ -1908,7 +2104,7 @@ libmei::RepeatMark Convert::markerToMEI(const engraving::Marker* marker, String&
         break;
     case (engraving::MarkerType::VARCODA):
     case (engraving::MarkerType::VARSEGNO):
-        // Here we could as @glyph.auth and @glyph.name but there as not in MEI-Basic
+        // Here we could use @glyph.auth and @glyph.name, but they are not included in MEI Basic
         break;
     case (engraving::MarkerType::TOCODASYM):
         text = "To 𝄌";
@@ -1916,6 +2112,9 @@ libmei::RepeatMark Convert::markerToMEI(const engraving::Marker* marker, String&
     default:
         text = marker->plainText();
     }
+
+    // @color
+    Convert::colorToMEI(marker, meiRepeatMark);
 
     return meiRepeatMark;
 }
@@ -2091,6 +2290,9 @@ Convert::OrnamStruct Convert::mordentFromMEI(engraving::Ornament* ornament, cons
 
     ornament->setSymId(symId);
 
+    // @color
+    Convert::colorFromMEI(ornament, meiMordent);
+
     // Other attributes
     return Convert::ornamFromMEI(ornament, meiMordent, warning);
 }
@@ -2161,6 +2363,9 @@ libmei::Mordent Convert::mordentToMEI(const engraving::Ornament* ornament)
         }
         meiMordent.SetGlyphAuth(SMUFL_AUTH);
     }
+
+    // @color
+    Convert::colorToMEI(ornament, meiMordent);
 
     return meiMordent;
 }
@@ -2264,6 +2469,9 @@ libmei::Octave Convert::octaveToMEI(const engraving::Ottava* ottava)
 
     // @color
     Convert::colorlineToMEI(ottava, meiOctave);
+
+    // @staff
+    Convert::staffIdentToMEI(ottava, meiOctave);
 
     return meiOctave;
 }
@@ -2492,11 +2700,19 @@ Convert::PitchStruct Convert::pitchFromMEI(const libmei::Note& meiNote, const li
     }
     int alterInt = static_cast<int>(alter);
 
-    /* This is currently not available in MEI Basic
     if (meiAccid.HasEnclose()) {
-        pitch.accidBracket = (accid.GetEnclose() == paren) ? engraving::AccidentalBracket::PARENTHESIS : engraving::AccidentalBracket::BRACKET;
+        switch (meiAccid.GetEnclose()) {
+        case libmei::ENCLOSURE_brack:
+            pitchSt.accidBracket = engraving::AccidentalBracket::BRACKET;
+            break;
+        case libmei::ENCLOSURE_paren:
+            pitchSt.accidBracket = engraving::AccidentalBracket::PARENTHESIS;
+            break;
+        default:
+            pitchSt.accidBracket = engraving::AccidentalBracket::NONE;
+            break;
+        }
     }
-    */
 
     bool accidWarning = false;
     if (meiAccid.HasAccid()) {
@@ -2527,8 +2743,7 @@ std::pair<libmei::Note, libmei::Accid> Convert::pitchToMEI(const engraving::Note
     pitch.tpc2 = note->tpc2();
     if (accid) {
         pitch.accidType = accid->accidentalType();
-        // Not available in MEI Basic
-        // pitch.accidBracket = accid->bracket();
+        pitch.accidBracket = accid->bracket();
         // Not needed because relying on accidType
         // pitch.accidRole = accid->role();
     }
@@ -2553,6 +2768,11 @@ std::pair<libmei::Note, libmei::Accid> Convert::pitchToMEI(const engraving::Note
     // @accid
     if (pitch.accidType != engraving::AccidentalType::NONE) {
         meiAccid.SetAccid(Convert::accidToMEI(pitch.accidType));
+        if (pitch.accidBracket == engraving::AccidentalBracket::BRACKET) {
+            meiAccid.SetEnclose(libmei::ENCLOSURE_brack);
+        } else if (pitch.accidBracket == engraving::AccidentalBracket::PARENTHESIS) {
+            meiAccid.SetEnclose(libmei::ENCLOSURE_paren);
+        }
     }
 
     // @accid.ges
@@ -2584,14 +2804,33 @@ libmei::data_STAFFREL Convert::placeToMEI(engraving::PlacementV place)
     }
 }
 
+engraving::DirectionV Convert::directionFromMEI(const libmei::data_STAFFREL meiPlace)
+{
+    switch (meiPlace) {
+    case (libmei::STAFFREL_above): return engraving::DirectionV::UP;
+    case (libmei::STAFFREL_below): return engraving::DirectionV::DOWN;
+    default:
+        return engraving::DirectionV::AUTO;
+    }
+}
+
+libmei::data_STAFFREL Convert::directionToMEI(engraving::DirectionV direction)
+{
+    switch (direction) {
+    case (engraving::DirectionV::UP): return libmei::STAFFREL_above;
+    case (engraving::DirectionV::DOWN): return libmei::STAFFREL_below;
+    default:
+        return libmei::STAFFREL_NONE;
+    }
+}
+
 void Convert::slurFromMEI(engraving::SlurTie* slur, const libmei::Slur& meiSlur, bool& warning)
 {
     warning = false;
 
-    // @place
+    // @curvedir
     if (meiSlur.HasCurvedir()) {
         slur->setSlurDirection(Convert::curvedirFromMEI(meiSlur.GetCurvedir(), warning));
-        //slur->setPropertyFlags(engraving::Pid::PLACEMENT, engraving::PropertyFlags::UNSTYLED);
     }
 
     // @lform
@@ -2660,6 +2899,9 @@ Convert::StaffStruct Convert::staffFromMEI(const libmei::StaffDef& meiStaffDef, 
     if (meiStaffDef.HasLines()) {
         staffSt.lines = meiStaffDef.GetLines();
     }
+    staffSt.invisible = meiStaffDef.GetLinesVisible() == libmei::BOOLEAN_false;
+    staffSt.scale = meiStaffDef.HasScale() ? meiStaffDef.GetScale() : 100;
+    staffSt.color = engraving::Color::fromString(meiStaffDef.GetLinesColor());
 
     // Set it only if both are given
     if (meiStaffDef.HasTransDiat() && meiStaffDef.HasTransSemi()) {
@@ -2691,7 +2933,48 @@ libmei::StaffDef Convert::staffToMEI(const engraving::Staff* staff)
     if (staffType) {
         meiStaffDef.SetLines(staffType->lines());
     }
+    // @lines.color
+    if (staffType->color() != engravingConfiguration()->defaultColor()) {
+        meiStaffDef.SetLinesColor(staffType->color().toString());
+    }
+    // @lines.visible
+    if (staff->isLinesInvisible(engraving::Fraction(0, 1))) {
+        meiStaffDef.SetLinesVisible(libmei::BOOLEAN_false);
+    }
+    // @scale
+    const double scale = staff->staffMag(engraving::Fraction(0, 1));
+    if (!muse::RealIsEqual(scale, 1.0)) {
+        meiStaffDef.SetScale(scale * 100);
+    }
     return meiStaffDef;
+}
+
+Convert::BracketStruct Convert::staffGrpFromMEI(const libmei::StaffGrp& meiStaffGrp)
+{
+    Convert::BracketStruct bracketSt;
+
+    bracketSt.bracketType = symbolFromMEI(meiStaffGrp.GetSymbol());
+
+    if (meiStaffGrp.HasBarThru() && meiStaffGrp.GetBarThru() == libmei::BOOLEAN_true) {
+        bracketSt.barLineSpan = 1;
+    }
+
+    return bracketSt;
+}
+
+libmei::StaffGrp Convert::staffGrpToMEI(const engraving::BracketType bracket, int barLineSpan)
+{
+    libmei::StaffGrp meiStaffGrp;
+
+    // @symbol
+    meiStaffGrp.SetSymbol(symbolToMEI(bracket));
+
+    // @bar.thru
+    if (barLineSpan > 0) {
+        meiStaffGrp.SetBarThru(libmei::BOOLEAN_true);
+    }
+
+    return meiStaffGrp;
 }
 
 std::pair<engraving::DirectionV, bool> Convert::stemFromMEI(const libmei::AttStems& meiStemsAtt, bool& warning)
@@ -2842,6 +3125,35 @@ libmei::Syl Convert::sylToMEI(const engraving::Lyrics* lyrics, ElisionType elisi
     return meiSyl;
 }
 
+engraving::BracketType Convert::symbolFromMEI(const libmei::staffGroupingSym_SYMBOL meiGrpSym)
+{
+    switch (meiGrpSym) {
+    case (libmei::staffGroupingSym_SYMBOL_bracket): return engraving::BracketType::NORMAL;
+    case (libmei::staffGroupingSym_SYMBOL_brace): return engraving::BracketType::BRACE;
+    case (libmei::staffGroupingSym_SYMBOL_bracketsq): return engraving::BracketType::SQUARE;
+    case (libmei::staffGroupingSym_SYMBOL_line): return engraving::BracketType::LINE;
+    case (libmei::staffGroupingSym_SYMBOL_none): return engraving::BracketType::NO_BRACKET;
+    default: return engraving::BracketType::NO_BRACKET;
+    }
+}
+
+libmei::staffGroupingSym_SYMBOL Convert::symbolToMEI(const engraving::BracketType bracket)
+{
+    switch (bracket) {
+    case (engraving::BracketType::NORMAL): return libmei::staffGroupingSym_SYMBOL_bracket;
+        break;
+    case (engraving::BracketType::BRACE): return libmei::staffGroupingSym_SYMBOL_brace;
+        break;
+    case (engraving::BracketType::SQUARE): return libmei::staffGroupingSym_SYMBOL_bracketsq;
+        break;
+    case (engraving::BracketType::LINE): return libmei::staffGroupingSym_SYMBOL_line;
+        break;
+    case (engraving::BracketType::NO_BRACKET): return libmei::staffGroupingSym_SYMBOL_none;
+        break;
+    default: return libmei::staffGroupingSym_SYMBOL_NONE;
+    }
+}
+
 void Convert::tempoFromMEI(engraving::TempoText* tempoText, const StringList& meiLines, const libmei::Tempo& meiTempo, bool& warning)
 {
     IF_ASSERT_FAILED(tempoText) {
@@ -2868,10 +3180,11 @@ void Convert::tempoFromMEI(engraving::TempoText* tempoText, const StringList& me
         tempoText->setFollowText(true);
     }
 
+    // @color
+    Convert::colorFromMEI(tempoText, meiTempo);
+
     // text
     tempoText->setXmlText(meiLines.join(u"\n"));
-
-    return;
 }
 
 libmei::Tempo Convert::tempoToMEI(const engraving::TempoText* tempoText, StringList& meiLines)
@@ -2895,6 +3208,12 @@ libmei::Tempo Convert::tempoToMEI(const engraving::TempoText* tempoText, StringL
 
     // text content - only split lines
     meiLines = String(tempoText->plainText()).split(u"\n");
+
+    // @staff
+    Convert::staffIdentToMEI(tempoText, meiTempo);
+
+    // @color
+    Convert::colorToMEI(tempoText, meiTempo);
 
     return meiTempo;
 }
@@ -2952,7 +3271,7 @@ std::tuple<libmei::Rend, TextCell, String> Convert::textToMEI(const engraving::T
 
     meiRend.SetFontsize(fontsize);
 
-    // @label (@lang because not available in MEI basic
+    // @label (@lang because not available in MEI Basic
     // This is what allows for reading pgHead back as VBox
     AsciiStringView rendType = engraving::TConv::toXml(text->textStyleType());
     meiRend.SetType(rendType.ascii());
@@ -3077,6 +3396,9 @@ Convert::OrnamStruct Convert::trillFromMEI(engraving::Ornament* ornament, const 
 
     ornament->setSymId(symId);
 
+    // @color
+    Convert::colorFromMEI(ornament, meiTrill);
+
     // Other attributes
     return Convert::ornamFromMEI(ornament, meiTrill, warning);
 }
@@ -3093,6 +3415,9 @@ libmei::Trill Convert::trillToMEI(const engraving::Ornament* ornament)
         meiTrill.SetGlyphName(glyphName.ascii());
         meiTrill.SetGlyphAuth(SMUFL_AUTH);
     }
+
+    // @color
+    Convert::colorToMEI(ornament, meiTrill);
 
     return meiTrill;
 }
@@ -3138,8 +3463,6 @@ void Convert::tupletFromMEI(engraving::Tuplet* tuplet, const libmei::Tuplet& mei
 
     // @color
     Convert::colorFromMEI(tuplet, meiTuplet);
-
-    return;
 }
 
 libmei::Tuplet Convert::tupletToMEI(const engraving::Tuplet* tuplet)
@@ -3283,6 +3606,53 @@ std::list<std::string> Convert::getTypeValuesWithPrefix(const std::string& typeS
     }
 
     return values;
+}
+
+void Convert::layerIdentFromMEI(engraving::EngravingItem* item, const libmei::Element& meiElement)
+{
+    if (!item->hasVoiceAssignmentProperties()) {
+        return;
+    }
+
+    const libmei::AttLayerIdent* layerAtt = dynamic_cast<const libmei::AttLayerIdent*>(&meiElement);
+
+    IF_ASSERT_FAILED(layerAtt) {
+        return;
+    }
+
+    if (layerAtt->HasLayer()) {
+        // without further check we assume the layer to match
+        item->setProperty(engraving::Pid::VOICE_ASSIGNMENT, engraving::VoiceAssignment::CURRENT_VOICE_ONLY);
+    }
+}
+
+void Convert::layerIdentToMEI(const engraving::EngravingItem* item, libmei::Element& meiElement)
+{
+    libmei::AttLayerIdent* layerAtt = dynamic_cast<libmei::AttLayerIdent*>(&meiElement);
+
+    IF_ASSERT_FAILED(layerAtt) {
+        return;
+    }
+
+    if (item->hasVoiceAssignmentProperties()
+        && (item->getProperty(engraving::Pid::VOICE_ASSIGNMENT).value<engraving::VoiceAssignment>()
+            == engraving::VoiceAssignment::CURRENT_VOICE_ONLY)) {
+        layerAtt->SetLayer(static_cast<int>(item->voice()) + 1);
+    }
+}
+
+void Convert::staffIdentToMEI(const engraving::EngravingItem* item, libmei::Element& meiElement)
+{
+    libmei::AttStaffIdent* staffAtt = dynamic_cast<libmei::AttStaffIdent*>(&meiElement);
+
+    IF_ASSERT_FAILED(staffAtt) {
+        return;
+    }
+
+    libmei::xsdPositiveInteger_List staffList;
+    staffList.push_back(static_cast<int>(item->staff()->idx()) + 1);
+    // TODO: add staff number if centered between staves
+    staffAtt->SetStaff(staffList);
 }
 
 double Convert::tstampFromFraction(const engraving::Fraction& fraction, const engraving::Fraction& timesig)

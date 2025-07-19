@@ -34,12 +34,11 @@ using namespace muse::actions;
 //---------------------------------------------------------
 
 TupletDialog::TupletDialog(QWidget* parent)
-    : QDialog(parent)
+    : QDialog(parent), muse::Injectable(muse::iocCtxForQWidget(this))
 {
     setObjectName("TupletDialog");
     setupUi(this);
     setWindowFlags(this->windowFlags() & ~Qt::WindowContextHelpButtonHint);
-    WidgetStateStore::restoreGeometry(this);
 
     connect(buttonBox, &QDialogButtonBox::clicked, this, &TupletDialog::bboxClicked);
 
@@ -96,9 +95,11 @@ TupletBracketType TupletDialog::bracketType() const
     return TupletBracketType::AUTO_BRACKET;
 }
 
-//---------------------------------------------------------
-//   hideEvent
-//---------------------------------------------------------
+void TupletDialog::showEvent(QShowEvent* event)
+{
+    WidgetStateStore::restoreGeometry(this);
+    QDialog::showEvent(event);
+}
 
 void TupletDialog::hideEvent(QHideEvent* event)
 {

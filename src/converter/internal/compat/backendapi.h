@@ -40,7 +40,7 @@ class Score;
 
 namespace mu::converter {
 class BackendJsonWriter;
-class BackendApi : public muse::Injectable
+class BackendApi
 {
     inline static muse::GlobalInject<muse::io::IFileSystem> fileSystem;
     inline static muse::GlobalInject<muse::IApplication> application;
@@ -95,9 +95,6 @@ private:
                                             bool addSeparator = false);
 
     static muse::RetVal<QByteArray> scorePartJson(mu::engraving::Score* score, const std::string& fileName);
-
-    static muse::RetVal<notation::TransposeOptions> parseTransposeOptions(const std::string& optionsJson);
-    static muse::Ret applyTranspose(const notation::INotationPtr notation, const std::string& optionsJson);
 
     static void switchToPageView(notation::IMasterNotationPtr masterNotation);
     static void renderExcerptsContents(notation::IMasterNotationPtr masterNotation);

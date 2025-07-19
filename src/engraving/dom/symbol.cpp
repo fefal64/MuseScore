@@ -78,7 +78,16 @@ AsciiStringView Symbol::symName() const
 
 String Symbol::accessibleInfo() const
 {
-    return String(u"%1: %2").arg(EngravingItem::accessibleInfo(), String::fromUtf8(SymNames::userNameForSymId(m_sym)));
+    return String(u"%1: %2").arg(EngravingItem::accessibleInfo(), SymNames::userNameForSymId(m_sym).translated());
+}
+
+//---------------------------------------------------------
+//   subtypeUserName
+//---------------------------------------------------------
+
+muse::TranslatableString Symbol::subtypeUserName() const
+{
+    return SymNames::userNameForSymId(m_sym);
 }
 
 //---------------------------------------------------------
@@ -116,7 +125,7 @@ bool Symbol::setProperty(Pid propertyId, const PropertyValue& v)
         m_sym = v.value<SymId>();
         break;
     case Pid::SCORE_FONT:
-        m_scoreFont = engravingFonts()->fontByName(v.value<String>().toStdString());
+        m_scoreFont = score()->engravingFonts()->fontByName(v.value<String>().toStdString());
         break;
     case Pid::SYMBOLS_SIZE:
         m_symbolsSize = v.toDouble();
@@ -146,7 +155,7 @@ PropertyValue Symbol::propertyDefault(Pid propertyId) const
         return 1.0;
     case Pid::SCORE_FONT:
         if (m_scoreFont) {
-            return style().styleSt(Sid::MusicalSymbolFont);
+            return style().styleSt(Sid::musicalSymbolFont);
         } else {
             return String();
         }

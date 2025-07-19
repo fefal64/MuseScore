@@ -20,14 +20,18 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#ifndef MU_NOTATION_EDITSTAFFTYPE_H
-#define MU_NOTATION_EDITSTAFFTYPE_H
+#pragma once
 
 #include "ui_editstafftype.h"
-#include "engraving/dom/mscore.h"
+
+#include "modularity/ioc.h"
+#include "engraving/iengravingconfiguration.h"
+
 #include "engraving/dom/stafftype.h"
+#include "engraving/style/textstyle.h"
 
 #include "notation/notationtypes.h"
+#include "view/widgets/editstyle.h"
 
 namespace mu::notation {
 //---------------------------------------------------------
@@ -38,9 +42,12 @@ class EditStaffType : public QDialog, private Ui::EditStaffType, public muse::In
 {
     Q_OBJECT
 
-    mu::engraving::Staff* staff;
+    muse::Inject<engraving::IEngravingConfiguration> engravingConfiguration = { this };
+    INJECT(muse::IInteractive, interactive)
+
     mu::engraving::StaffType staffType;
 
+    virtual void showEvent(QShowEvent*);
     virtual void hideEvent(QHideEvent*);
     void blockSignals(bool block);
 
@@ -56,6 +63,8 @@ private slots:
     void nameEdited(const QString&);
     void durFontNameChanged(int idx);
     void fretFontNameChanged(int idx);
+    void textStylesToggled(bool checked);
+    void presetsToggled(bool checked);
     void tabStemThroughToggled(bool checked);
     void tabMinimShortToggled(bool checked);
     void tabStemsToggled(bool checked);
@@ -65,7 +74,6 @@ private slots:
     void loadPresets();
     void resetToTemplateClicked();
     void addToTemplatesClicked();
-//      void staffGroupChanged(int);
 
 public:
     EditStaffType(QWidget* parent = nullptr);
@@ -77,6 +85,11 @@ public:
 
 private:
     muse::Ret loadScore(mu::engraving::MasterScore* score, const muse::io::path_t& path);
+
+    void enablePresets();
+    void enableTextStyles();
+
+    std::vector<QString> textStyleNames() const;
+    engraving::TextStyleType getTextStyle(const QString& name) const;
 };
 }
-#endif
